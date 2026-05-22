@@ -1,1 +1,2870 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ma Vie — Tableau de bord familial</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Firebase (base de données partagée) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    .tab-active { border-bottom: 3px solid #6366f1; }
+    .meal-slot { min-height: 56px; }
+    .fade-in { animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 3px; }
+    .checklist-item.checked label { text-decoration: line-through; color: #94a3b8; }
+    .person-damien { background: #dbeafe; color: #1d4ed8; }
+    .person-wife { background: #fce7f3; color: #be185d; }
+    .trip-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    /* ── Dark mode ─────────────────────────────────────────────── */
+    html.dark { color-scheme: dark; }
+    html.dark body { background-color: #0f172a !important; }
+    html.dark .bg-slate-50 { background-color: #0f172a !important; }
+    html.dark .bg-white { background-color: #1e293b !important; }
+    html.dark .bg-slate-100 { background-color: #1e293b !important; }
+    html.dark .bg-indigo-50 { background-color: rgba(99,102,241,.12) !important; }
+    html.dark .bg-purple-50 { background-color: rgba(168,85,247,.12) !important; }
+    html.dark .bg-green-50  { background-color: rgba(34,197,94,.12)  !important; }
+    html.dark .bg-orange-50 { background-color: rgba(249,115,22,.12) !important; }
+    html.dark .bg-rose-50   { background-color: rgba(244,63,94,.12)  !important; }
+    html.dark .bg-amber-50  { background-color: rgba(245,158,11,.12) !important; }
+    html.dark .text-slate-800, html.dark .text-slate-900 { color: #f1f5f9 !important; }
+    html.dark .text-slate-700 { color: #e2e8f0 !important; }
+    html.dark .text-slate-600 { color: #cbd5e1 !important; }
+    html.dark .text-slate-500 { color: #94a3b8 !important; }
+    html.dark .text-slate-400 { color: #64748b  !important; }
+    html.dark .text-slate-300 { color: #334155  !important; }
+    html.dark .border-slate-100 { border-color: #1e293b !important; }
+    html.dark .border-slate-200 { border-color: #334155 !important; }
+    html.dark .border-t, html.dark .border-b { border-color: #334155 !important; }
+    html.dark .divide-slate-50 > * + * { border-color: #1e293b !important; }
+    html.dark input, html.dark textarea, html.dark select { background-color: #0f172a !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+    html.dark input::placeholder, html.dark textarea::placeholder { color: #475569 !important; }
+    html.dark .hover\:bg-slate-50:hover  { background-color: #1e293b !important; }
+    html.dark .hover\:bg-slate-100:hover { background-color: #1e293b !important; }
+    html.dark .hover\:bg-slate-200:hover { background-color: #334155 !important; }
+    html.dark .shadow-sm, html.dark .shadow-md { box-shadow: 0 1px 3px rgba(0,0,0,.5) !important; }
+    html.dark ::-webkit-scrollbar-track { background: #1e293b; }
+    html.dark ::-webkit-scrollbar-thumb { background: #4f46e5; }
+    html.dark .checklist-item.checked label { color: #475569 !important; }
+    html.dark .person-damien { background: rgba(29,78,216,.25) !important; }
+    html.dark .person-wife   { background: rgba(190,24,93,.25) !important; }
+    html.dark .tab-active { border-bottom-color: #818cf8; }
+    html.dark .bg-indigo-50 { background-color: rgba(99,102,241,.12) !important; }
+    html.dark .border-indigo-100 { border-color: rgba(99,102,241,.2) !important; }
+    html.dark .text-indigo-600 { color: #818cf8 !important; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+<div id="root"></div>
 
+<script>
+  // ── Firebase init ────────────────────────────────────────────────────────────
+  firebase.initializeApp({
+    apiKey:            "AIzaSyAXE5h3wKCUEka0GC_9dPWiXhu_r4ByZg0",
+    authDomain:        "dasilvlife.firebaseapp.com",
+    projectId:         "dasilvlife",
+    storageBucket:     "dasilvlife.firebasestorage.app",
+    messagingSenderId: "207299904180",
+    appId:             "1:207299904180:web:c9b9858763517bbd978de1",
+  });
+  window._db = firebase.firestore();
+</script>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const DAYS_FR = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const CATEGORIES = ['Fruits & Légumes','Viandes & Poissons','Produits laitiers','Épicerie','Boulangerie','Boissons','Surgelés','Hygiène','Autre'];
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function fmtDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function fmtDateFr(d) {
+  return d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+}
+function useLocalStorage(key, def) {
+  const [val, setVal] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
+    catch { return def; }
+  });
+  useEffect(() => { localStorage.setItem(key, JSON.stringify(val)); }, [key, val]);
+  return [val, setVal];
+}
+
+// ── Base de données partagée (Firebase Firestore) ─────────────────────────────
+function useSharedState(key, defaultValue) {
+  const [val, setVal] = useState(() => {
+    // Initialisation instantanée depuis le cache local
+    try { const s = localStorage.getItem('fs_' + key); return s ? JSON.parse(s) : defaultValue; }
+    catch { return defaultValue; }
+  });
+
+  useEffect(() => {
+    // Écoute les changements en temps réel (sync entre téléphones)
+    const unsub = window._db.collection('maVie').doc(key).onSnapshot(
+      snap => {
+        if (snap.exists) {
+          const remote = snap.data().v;
+          setVal(remote);
+          try { localStorage.setItem('fs_' + key, JSON.stringify(remote)); } catch {}
+        }
+      },
+      err => console.warn('[Firestore]', key, err.message)
+    );
+    return unsub;
+  }, [key]);
+
+  function setShared(newVal) {
+    setVal(prev => {
+      const next = typeof newVal === 'function' ? newVal(prev) : newVal;
+      Promise.resolve().then(() => {
+        try { localStorage.setItem('fs_' + key, JSON.stringify(next)); } catch {}
+        window._db.collection('maVie').doc(key).set({ v: next })
+          .catch(e => console.warn('[Firestore write]', e.message));
+      });
+      return next;
+    });
+  }
+
+  return [val, setShared];
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+// ── Composants UI ─────────────────────────────────────────────────────────────
+function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 fade-in" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-800 text-lg">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Pill({ color, children }) {
+  const colors = {
+    indigo: 'bg-indigo-100 text-indigo-700',
+    green: 'bg-green-100 text-green-700',
+    amber: 'bg-amber-100 text-amber-700',
+    rose: 'bg-rose-100 text-rose-700',
+    purple: 'bg-purple-100 text-purple-700',
+  };
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[color] || colors.indigo}`}>{children}</span>;
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function Settings({ settings, setSettings, onClose, anniversaires, setAnniversaires }) {
+  const [form, setForm] = useState(settings);
+  const [section, setSection] = useState('general'); // 'general' | 'anniversaires'
+  const [annivModal, setAnnivModal] = useState(false);
+  const [annivEdit, setAnnivEdit] = useState(null);
+  const [annivForm, setAnnivForm] = useState({ name:'', day:'', month:'', year:'', emoji:'🎂' });
+
+  function openAdd() { setAnnivForm({ name:'', day:'', month:'', year:'', emoji:'🎂' }); setAnnivEdit(null); setAnnivModal(true); }
+  function openEdit(a) { setAnnivForm(a); setAnnivEdit(a.id); setAnnivModal(true); }
+  function saveAnniv() {
+    if (!annivForm.name || !annivForm.day || !annivForm.month) return;
+    if (annivEdit) setAnniversaires(p => p.map(a => a.id === annivEdit ? {...annivForm, id: annivEdit} : a));
+    else setAnniversaires(p => [...p, {...annivForm, id: uid()}]);
+    setAnnivModal(false);
+  }
+  function removeAnniv(id) { setAnniversaires(p => p.filter(a => a.id !== id)); }
+  const sorted = [...(anniversaires||[])].sort((a,b) => daysUntil(a.day,a.month)-daysUntil(b.day,b.month));
+
+  return (
+    <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+      {/* Onglets internes */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        {[['general','⚙️ Général'],['anniversaires','🎂 Anniversaires']].map(([id,label]) => (
+          <button key={id} onClick={() => setSection(id)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${section===id?'bg-white text-indigo-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>{label}</button>
+        ))}
+      </div>
+
+      {section === 'general' && <>
+        {[['myName','Votre prénom'],['partnerName','Prénom de votre femme'],['childName','Prénom de votre enfant'],['crecheName','Nom de la crèche']].map(([k,label]) => (
+          <div key={k}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              value={form[k] || ''} onChange={e => setForm(p => ({...p,[k]:e.target.value}))} />
+          </div>
+        ))}
+        {[['calendarUrl','📅 Agenda 1'],['calendarUrl2','📅 Agenda 2 (optionnel)']].map(([key, label]) => (
+          <div className="pt-2" key={key}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{label} — code iframe ou URL</label>
+            <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+              rows={2} placeholder={'Collez ici le code <iframe ...> ou l\'URL directe'}
+              value={form[key] || ''}
+              onChange={e => {
+                const raw = e.target.value;
+                const match = raw.match(/src="([^"]+)"/);
+                setForm(p => ({...p, [key]: match ? match[1] : raw.trim()}));
+              }} />
+          </div>
+        ))}
+        <p className="text-xs text-slate-400">Google Calendar → ⚙️ Paramètres → votre calendrier → "Intégrer le calendrier"</p>
+        <div className="flex gap-2 pt-2">
+          <button onClick={() => { setSettings(form); onClose(); }}
+            className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
+          <button onClick={onClose} className="flex-1 border border-slate-200 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+        </div>
+      </>}
+
+      {section === 'anniversaires' && <>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-slate-500">{sorted.length} anniversaire{sorted.length!==1?'s':''} enregistré{sorted.length!==1?'s':''}</p>
+          <button onClick={openAdd} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-indigo-700">+ Ajouter</button>
+        </div>
+        {sorted.length === 0 ? (
+          <div className="text-center py-8 text-slate-400">
+            <div className="text-4xl mb-2">🎂</div>
+            <p className="text-sm">Aucun anniversaire enregistré</p>
+            <button onClick={openAdd} className="mt-3 text-indigo-500 text-sm hover:underline">Ajouter le premier →</button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sorted.map(a => {
+              const days = daysUntil(a.day, a.month);
+              const info = FNG_LABELS; // just use days
+              return (
+                <div key={a.id} className="flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5">
+                  <span className="text-xl">{a.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">{a.name}</div>
+                    <div className="text-xs text-slate-400">{String(a.day).padStart(2,'0')}/{String(a.month).padStart(2,'0')}{a.year?`/${a.year}`:''}</div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${days===0?'bg-indigo-600 text-white':days<=7?'bg-rose-50 text-rose-600':'bg-slate-100 text-slate-500'}`}>
+                    {days===0?'🎉 Aujourd\'hui':`J-${days}`}
+                  </span>
+                  <button onClick={() => openEdit(a)} className="text-slate-300 hover:text-indigo-400 text-sm flex-shrink-0">✏️</button>
+                  <button onClick={() => removeAnniv(a.id)} className="text-slate-300 hover:text-rose-400 text-sm flex-shrink-0">✕</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>}
+
+      {/* Modal ajout/édition anniversaire */}
+      <Modal open={annivModal} onClose={() => setAnnivModal(false)} title={annivEdit ? 'Modifier' : '🎂 Nouvel anniversaire'}>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Prénom / Nom *</label>
+            <input autoFocus className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ex: Mamie Lala" value={annivForm.name} onChange={e => setAnnivForm(p=>({...p,name:e.target.value}))} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Jour *</label>
+              <input type="number" min="1" max="31" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="15" value={annivForm.day} onChange={e => setAnnivForm(p=>({...p,day:e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mois *</label>
+              <input type="number" min="1" max="12" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="3" value={annivForm.month} onChange={e => setAnnivForm(p=>({...p,month:e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Année</label>
+              <input type="number" min="1900" max="2030" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="1980" value={annivForm.year} onChange={e => setAnnivForm(p=>({...p,year:e.target.value}))} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Icône</label>
+            <div className="flex gap-2 flex-wrap">
+              {ANNIV_EMOJIS.map(e => (
+                <button key={e} onClick={() => setAnnivForm(p=>({...p,emoji:e}))}
+                  className={`text-xl p-1.5 rounded-lg transition-all ${annivForm.emoji===e ? 'bg-indigo-100 ring-2 ring-indigo-400' : 'hover:bg-slate-100'}`}>{e}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={saveAnniv} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
+            <button onClick={() => setAnnivModal(false)} className="flex-1 border border-slate-200 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({ meals, crecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings }) {
+  const today = new Date();
+  const todayKey = fmtDate(today);
+  const todayMeals = meals[todayKey] || {};
+  const todayCreche = crecheSchedule[todayKey] || {};
+  const upcoming = trips.filter(t => new Date(t.startDate) >= today).sort((a,b) => new Date(a.startDate)-new Date(b.startDate)).slice(0,3);
+  const unchecked = shoppingItems.filter(i => !i.checked);
+
+  const agendaUrl = (() => {
+    const srcs = [...extractSrcs(settings.calendarUrl), ...extractSrcs(settings.calendarUrl2)];
+    if (!srcs.length) return null;
+    let ctz = '';
+    try { ctz = new URL(settings.calendarUrl).searchParams.get('ctz') || ''; } catch {}
+    const fmtGcal = d => fmtDate(d).replace(/-/g,'');
+    const dateRange = `${fmtGcal(today)}%2F${fmtGcal(addDays(today, 2))}`;
+    const params = srcs.map(s => `src=${encodeURIComponent(decodeURIComponent(s))}`).join('&');
+    return `https://calendar.google.com/calendar/embed?${params}${ctz?`&ctz=${encodeURIComponent(ctz)}`:''}&mode=AGENDA&dates=${dateRange}&showTitle=0&showNav=0&showPrint=0&showTabs=0&showCalendars=0`;
+  })();
+
+  return (
+    <div className="space-y-5 fade-in">
+      <div>
+        <p className="text-slate-500 text-sm capitalize">{fmtDateFr(today)}</p>
+        <h2 className="text-2xl font-bold text-slate-800">Bonjour {settings.myName} 👋</h2>
+      </div>
+
+      {/* Dîner du jour */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-slate-700">🌙 Ce soir on mange</h3>
+          <button onClick={() => setTab('meals')} className="text-xs text-indigo-500 hover:underline">Voir semainier →</button>
+        </div>
+        <div className={`rounded-xl p-4 text-center ${todayMeals['Dîner'] ? 'bg-indigo-50 border border-indigo-200' : 'bg-slate-50 border border-dashed border-slate-200'}`}>
+          {todayMeals['Dîner']
+            ? <span className="text-base font-semibold text-indigo-800">{todayMeals['Dîner']}</span>
+            : <span className="text-slate-400 text-sm">Rien de prévu — <button onClick={() => setTab('meals')} className="text-indigo-500 hover:underline">planifier →</button></span>}
+        </div>
+      </div>
+
+      {/* Crèche */}
+      {(() => {
+        const dow = today.getDay(); // 0=dim, 1=lun, 2=mar, 3=mer, 4=jeu, 5=ven, 6=sam
+        const isCrecheDay = [2,3,4].includes(dow); // mar, mer, jeu
+        const isFriday = dow === 5;
+        const mamieToday = getMamieForWeek(getMonday(today));
+        const todayStr = fmtDate(today);
+        const todayTrip = trips.find(t => todayStr >= t.startDate && todayStr <= (t.endDate || t.startDate));
+        return (
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-700">👶 {settings.childName} aujourd'hui</h3>
+              <button onClick={() => setTab('creche')} className="text-xs text-indigo-500 hover:underline">Planning →</button>
+            </div>
+            {todayTrip ? (
+              <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+                <span className="text-2xl">{todayTrip.emoji || '✈️'}</span>
+                <div>
+                  <div className="text-sm font-semibold text-purple-700">En voyage — {todayTrip.name}</div>
+                  <div className="text-xs text-purple-500">Pas de crèche aujourd'hui</div>
+                </div>
+              </div>
+            ) : isCrecheDay ? (
+              <div className="flex gap-4">
+                <div className="flex-1 rounded-xl p-3 bg-slate-50 text-center">
+                  <div className="text-xs text-slate-500 mb-1">🌅 Dépôt</div>
+                  {todayCreche.dropoff
+                    ? <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${todayCreche.dropoff===settings.myName?'person-damien':'person-wife'}`}>{todayCreche.dropoff}</span>
+                    : <span className="text-slate-300 text-sm">—</span>}
+                </div>
+                <div className="flex-1 rounded-xl p-3 bg-slate-50 text-center">
+                  <div className="text-xs text-slate-500 mb-1">🌆 Récupération</div>
+                  {todayCreche.pickup
+                    ? <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${todayCreche.pickup===settings.myName?'person-damien':'person-wife'}`}>{todayCreche.pickup}</span>
+                    : <span className="text-slate-300 text-sm">—</span>}
+                </div>
+              </div>
+            ) : isFriday ? (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <span className="text-2xl">👵</span>
+                <div>
+                  <div className="text-sm font-semibold text-green-700">Chez {mamieToday}</div>
+                  <div className="text-xs text-green-500">Pas de crèche aujourd'hui</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <span className="text-2xl">🏠</span>
+                <div className="text-sm font-medium text-slate-500">Pas de crèche aujourd'hui</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Anniversaires à venir */}
+      {anniversaires.length > 0 && (() => {
+        const upcoming = [...anniversaires]
+          .sort((a,b) => daysUntil(a.day,a.month) - daysUntil(b.day,b.month))
+          .filter(a => daysUntil(a.day,a.month) <= 30)
+          .slice(0,3);
+        if (!upcoming.length) return null;
+        return (
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-700">🎂 Bientôt</h3>
+              <button onClick={() => onOpenSettings && onOpenSettings()} className="text-xs text-indigo-500 hover:underline">Gérer →</button>
+            </div>
+            <div className="space-y-2">
+              {upcoming.map(a => {
+                const d = daysUntil(a.day, a.month);
+                return (
+                  <div key={a.id} className="flex items-center gap-3">
+                    <span className="text-xl">{a.emoji}</span>
+                    <span className="flex-1 text-sm text-slate-700 font-medium">{a.name}</span>
+                    {d === 0
+                      ? <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">Aujourd'hui 🎉</span>
+                      : <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${d<=7?'bg-rose-50 text-rose-600':'bg-slate-100 text-slate-500'}`}>J-{d}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Notes épinglées */}
+      {notes.filter(n => n.pinned).length > 0 && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-700">📌 Notes épinglées</h3>
+            <button onClick={() => setTab('notes')} className="text-xs text-indigo-500 hover:underline">Toutes →</button>
+          </div>
+          <div className="space-y-2">
+            {notes.filter(n=>n.pinned).slice(0,3).map(n => {
+              const c = NOTE_COLORS[n.color] || NOTE_COLORS.yellow;
+              return (
+                <div key={n.id} className={`${c.bg} ${c.border} border rounded-xl px-3 py-2`}>
+                  {n.title && <div className="text-xs font-semibold text-slate-700 mb-0.5">{n.title}</div>}
+                  <div className="text-sm text-slate-600 line-clamp-2">{n.content}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Widget domotique */}
+      {((domotiqueConfig?.vacuum?.enabled) || (domotiqueConfig?.plugs?.length > 0)) && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-700">🏠 Maison</h3>
+            <button onClick={() => setTab('domotique')} className="text-xs text-indigo-500 hover:underline">Contrôler →</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {domotiqueConfig?.vacuum?.enabled && (
+              <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                <span>🤖</span>
+                <span className="text-xs font-medium text-slate-600">{domotiqueConfig.vacuum.name || 'MOVA'}</span>
+                {domotiqueStates?.vacuum?.electricity !== undefined && (
+                  <span className="text-xs text-slate-400">{domotiqueStates.vacuum.electricity}%🔋</span>
+                )}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${domotiqueStates?.vacuum?.status === 'cleaning' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {VACUUM_LABELS[domotiqueStates?.vacuum?.status] || '—'}
+                </span>
+              </div>
+            )}
+            {(domotiqueConfig?.plugs || []).map(plug => {
+              const isOn = domotiqueStates?.[plug.id]?.on ?? false;
+              return (
+                <div key={plug.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${isOn ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
+                  <span>{plug.icon || '💡'}</span>
+                  <span className="text-xs font-medium text-slate-600 truncate max-w-20">{plug.name}</span>
+                  <span className={`text-xs font-semibold ${isOn ? 'text-amber-600' : 'text-slate-400'}`}>{isOn ? '●' : '○'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Widget Finance */}
+      <FinanceWidget setTab={setTab} />
+
+      {/* Agenda aujourd'hui & demain */}
+      {agendaUrl && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-700">📅 Agenda — Aujourd'hui & Demain</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})} · {addDays(today,1).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}
+              </p>
+            </div>
+            <button onClick={() => setTab('calendar')} className="text-xs text-indigo-500 hover:underline flex-shrink-0">Tout voir →</button>
+          </div>
+          <iframe key={agendaUrl} src={agendaUrl} style={{border:0}} width="100%" height="240" frameBorder="0" scrolling="no" title="Agenda du jour" />
+        </div>
+      )}
+
+      {/* Voyages */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-slate-700">✈️ Prochains voyages</h3>
+          <button onClick={() => setTab('trips')} className="text-xs text-indigo-500 hover:underline">Tous →</button>
+        </div>
+        {upcoming.length === 0
+          ? <p className="text-slate-400 text-sm">Aucun voyage prévu. <button onClick={() => setTab('trips')} className="text-indigo-500 hover:underline">Ajouter →</button></p>
+          : <div className="space-y-2">
+              {upcoming.map(t => {
+                const daysLeft = Math.ceil((new Date(t.startDate)-today)/86400000);
+                return (
+                  <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                    <span className="text-2xl">{t.emoji||'🗺️'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 truncate">{t.name}</div>
+                      <div className="text-xs text-slate-500">{t.destination} · {new Date(t.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
+                    </div>
+                    <Pill color={daysLeft<=7?'rose':daysLeft<=30?'amber':'green'}>J-{daysLeft}</Pill>
+                  </div>
+                );
+              })}
+            </div>
+        }
+      </div>
+
+      {/* Courses */}
+      {unchecked.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-700">🛒 À acheter ({unchecked.length})</h3>
+            <button onClick={() => setTab('shopping')} className="text-xs text-indigo-500 hover:underline">Liste complète →</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {unchecked.slice(0,6).map(i => <span key={i.id} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">{i.name}</span>)}
+            {unchecked.length>6 && <span className="text-xs text-slate-400">+{unchecked.length-6} autres</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Semainier de repas ────────────────────────────────────────────────────────
+function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
+  const [weekStart, setWeekStart] = useState(getMonday(new Date()));
+  const [modal, setModal] = useState(null); // {dateKey, meal}
+  const [input, setInput] = useState('');
+  const [ingredients, setIngredients] = useState('');
+
+  const days = Array.from({length:7}, (_,i) => addDays(weekStart, i));
+
+  function openSlot(dateKey) {
+    setInput(meals[dateKey]?.['Dîner'] || '');
+    setIngredients('');
+    setModal({dateKey});
+  }
+  function saveMeal() {
+    if (!modal) return;
+    const {dateKey} = modal;
+    setMeals(p => ({...p, [dateKey]: {...(p[dateKey]||{}), 'Dîner': input}}));
+    if (ingredients.trim()) {
+      const dayLabel = DAYS_FR[days.findIndex(d => fmtDate(d) === dateKey)];
+      const newItems = ingredients.split(',').map(s => s.trim()).filter(Boolean).map(name => ({
+        id: uid(), name, quantity:'', category:'Épicerie', checked:false, fromMeal:true, meal:`${dayLabel} soir`
+      }));
+      setShoppingItems(p => [...p, ...newItems]);
+    }
+    setModal(null);
+  }
+  function clearMeal(dateKey) {
+    setMeals(p => {
+      const next = {...p, [dateKey]: {...(p[dateKey]||{})}};
+      delete next[dateKey]['Dîner'];
+      return next;
+    });
+  }
+
+  const fmtWeek = `${weekStart.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} – ${addDays(weekStart,6).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}`;
+  const modalDay = modal ? DAYS_FR[days.findIndex(d => fmtDate(d) === modal.dateKey)] : '';
+
+  return (
+    <div className="fade-in space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-xl font-bold text-slate-800">🌙 Dîners de la semaine</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setWeekStart(p => addDays(p,-7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">◀</button>
+          <span className="text-sm font-medium text-slate-600">{fmtWeek}</span>
+          <button onClick={() => setWeekStart(p => addDays(p,7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">▶</button>
+        </div>
+      </div>
+
+      {days.map((d, i) => {
+        const dk = fmtDate(d);
+        const val = meals[dk]?.['Dîner'];
+        const isToday = dk === fmtDate(new Date());
+        return (
+          <div key={dk}
+            onClick={() => openSlot(dk)}
+            className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border ${isToday ? 'border-indigo-300 ring-1 ring-indigo-200 bg-white' : 'bg-white border-slate-100 hover:border-indigo-200'}`}>
+            <div className="w-20 flex-shrink-0">
+              <div className={`text-sm font-semibold ${isToday ? 'text-indigo-600' : 'text-slate-700'}`}>{DAYS_FR[i]}</div>
+              <div className="text-xs text-slate-400">{d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
+            </div>
+            <div className="flex-1">
+              {val
+                ? <span className="text-sm font-medium text-slate-800">{val}</span>
+                : <span className="text-sm text-slate-300">Ajouter un plat...</span>}
+            </div>
+            {val
+              ? <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-1 rounded-lg">✏️</span>
+              : <span className="text-slate-300 text-lg">+</span>}
+          </div>
+        );
+      })}
+
+      <Modal open={!!modal} onClose={() => setModal(null)} title={`🌙 Dîner · ${modalDay}`}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Plat</label>
+            <input autoFocus className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ex: Poulet rôti, Pasta bolognaise..."
+              value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key==='Enter' && saveMeal()} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Ingrédients à acheter <span className="text-slate-400 font-normal">(optionnel, virgules)</span></label>
+            <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+              rows={2} placeholder="Ex: 500g pâtes, boeuf haché, coulis tomate..."
+              value={ingredients} onChange={e => setIngredients(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveMeal} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
+            {modal && meals[modal.dateKey]?.['Dîner'] && (
+              <button onClick={() => { clearMeal(modal.dateKey); setModal(null); }}
+                className="px-4 border border-rose-200 text-rose-500 rounded-lg py-2 text-sm hover:bg-rose-50">Supprimer</button>
+            )}
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Liste de courses ──────────────────────────────────────────────────────────
+function ShoppingList({ shoppingItems, setShoppingItems }) {
+  const [form, setForm] = useState({name:'',quantity:'',category:'Épicerie'});
+  const [filter, setFilter] = useState('all');
+
+  function addItem() {
+    if (!form.name.trim()) return;
+    setShoppingItems(p => [...p, {id:uid(), ...form, checked:false, fromMeal:false}]);
+    setForm(p => ({...p, name:'', quantity:''}));
+  }
+  function toggle(id) { setShoppingItems(p => p.map(i => i.id===id ? {...i,checked:!i.checked} : i)); }
+  function remove(id) { setShoppingItems(p => p.filter(i => i.id!==id)); }
+  function clearChecked() { setShoppingItems(p => p.filter(i => !i.checked)); }
+
+  const grouped = CATEGORIES.reduce((acc,cat) => {
+    const items = shoppingItems.filter(i => i.category===cat && (filter==='all' || (filter==='todo' && !i.checked) || (filter==='done' && i.checked)));
+    if (items.length) acc[cat] = items;
+    return acc;
+  }, {});
+  const uncheckedCount = shoppingItems.filter(i=>!i.checked).length;
+  const checkedCount = shoppingItems.filter(i=>i.checked).length;
+
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">🛒 Liste de courses</h2>
+        {checkedCount > 0 && (
+          <button onClick={clearChecked} className="text-xs text-rose-500 hover:underline">Supprimer achetés ({checkedCount})</button>
+        )}
+      </div>
+
+      {/* Add form */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+        <div className="flex gap-2 mb-2">
+          <input className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            placeholder="Ajouter un article..."
+            value={form.name} onChange={e => setForm(p=>({...p,name:e.target.value}))}
+            onKeyDown={e => e.key==='Enter' && addItem()} />
+          <input className="w-24 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            placeholder="Qté"
+            value={form.quantity} onChange={e => setForm(p=>({...p,quantity:e.target.value}))}
+            onKeyDown={e => e.key==='Enter' && addItem()} />
+          <button onClick={addItem} className="bg-indigo-600 text-white px-4 rounded-lg text-sm font-medium hover:bg-indigo-700">+</button>
+        </div>
+        <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 text-slate-600"
+          value={form.category} onChange={e => setForm(p=>({...p,category:e.target.value}))}>
+          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2">
+        {[['all','Tous'],['todo','À acheter'],['done','Achetés']].map(([v,l]) => (
+          <button key={v} onClick={() => setFilter(v)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${filter===v?'bg-indigo-600 text-white':'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'}`}>
+            {l}{v==='todo'&&uncheckedCount>0?` (${uncheckedCount})`:''}
+          </button>
+        ))}
+      </div>
+
+      {/* Items by category */}
+      <div className="space-y-3">
+        {Object.entries(grouped).map(([cat,items]) => (
+          <div key={cat} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{cat}</span>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {items.map(item => (
+                <div key={item.id} className={`checklist-item flex items-center gap-3 px-4 py-3 hover:bg-slate-50 ${item.checked?'checked':''}`}>
+                  <input type="checkbox" checked={item.checked} onChange={() => toggle(item.id)}
+                    className="w-4 h-4 accent-indigo-600 cursor-pointer" />
+                  <label className="flex-1 text-sm text-slate-700 cursor-pointer" onClick={() => toggle(item.id)}>
+                    {item.name}
+                    {item.quantity && <span className="text-slate-400 ml-1">· {item.quantity}</span>}
+                    {item.fromMeal && <span className="ml-2 text-xs text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded">menu</span>}
+                  </label>
+                  <button onClick={() => remove(item.id)} className="text-slate-300 hover:text-rose-400 text-xs px-1">✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {Object.keys(grouped).length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <div className="text-4xl mb-2">🛒</div>
+            <p className="text-sm">Liste vide — ajoutez des articles ou planifiez des repas !</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Planning crèche ───────────────────────────────────────────────────────────
+// Semaine de référence : vendredi 3 avril 2026 = Mamie Guida
+const MAMIE_REF_MONDAY = new Date('2026-03-30');
+function getMamieForWeek(weekStart) {
+  const weeks = Math.round((weekStart - MAMIE_REF_MONDAY) / (7 * 86400000));
+  return weeks % 2 === 0 ? 'Mamie Guida' : 'Mamie Lala';
+}
+
+function CrecheSchedule({ crecheSchedule, setCrecheSchedule, settings, trips }) {
+  const [weekStart, setWeekStart] = useState(getMonday(new Date()));
+  const allDays = Array.from({length:5}, (_,i) => addDays(weekStart, i));
+  const days = allDays.filter((_,i) => [1,2,3].includes(i)); // Mar, Mer, Jeu
+  const friday = addDays(weekStart, 4);
+  const mamie = getMamieForWeek(weekStart);
+
+  const persons = [settings.myName || 'Damien', settings.partnerName || 'Ma femme'];
+
+  function getTripForDay(d) {
+    const dStr = fmtDate(d);
+    return (trips || []).find(t => {
+      const startStr = t.startDate;
+      const endStr = t.endDate || t.startDate;
+      return dStr >= startStr && dStr <= endStr;
+    });
+  }
+
+  function toggle(dateKey, type) {
+    setCrecheSchedule(p => {
+      const cur = p[dateKey]?.[type];
+      const next = cur === persons[0] ? persons[1] : cur === persons[1] ? null : persons[0];
+      return {...p, [dateKey]: {...(p[dateKey]||{}), [type]: next}};
+    });
+  }
+
+  function PersonBtn({ dateKey, type }) {
+    const val = crecheSchedule[dateKey]?.[type];
+    const isDamien = val === persons[0];
+    return (
+      <button
+        onClick={() => toggle(dateKey, type)}
+        className={`w-full py-2 px-2 rounded-xl text-xs font-semibold transition-all border-2 ${
+          val === persons[0] ? 'person-damien border-blue-300' :
+          val === persons[1] ? 'person-wife border-pink-300' :
+          'bg-slate-100 text-slate-400 border-transparent hover:border-slate-200'
+        }`}
+      >
+        {val || '—'}
+      </button>
+    );
+  }
+
+  function copyWeek() {
+    const thisWeek = {};
+    days.forEach(d => {
+      const dk = fmtDate(d);
+      const nextDk = fmtDate(addDays(d, 7));
+      if (crecheSchedule[dk]) thisWeek[nextDk] = crecheSchedule[dk];
+    });
+    setCrecheSchedule(p => ({...p, ...thisWeek}));
+    setWeekStart(p => addDays(p, 7));
+  }
+
+  const fmtWeek = `${weekStart.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} – ${addDays(weekStart,4).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}`;
+
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">👶 {settings.childName || 'Gabriella'} — Crèche</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setWeekStart(p => addDays(p,-7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">◀</button>
+          <span className="text-sm font-medium text-slate-600">{fmtWeek}</span>
+          <button onClick={() => setWeekStart(p => addDays(p,7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">▶</button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-2">
+        <div className="flex flex-wrap gap-3 text-sm">
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-300 inline-block"></span><span className="text-slate-600">{persons[0]}</span></div>
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-pink-300 inline-block"></span><span className="text-slate-600">{persons[1]}</span></div>
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-300 inline-block"></span><span className="text-slate-600">Mamie Guida</span></div>
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-orange-300 inline-block"></span><span className="text-slate-600">Mamie Lala</span></div>
+          <div className="text-slate-400 ml-auto text-xs self-center">Cliquez pour changer</div>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {days.map((d) => {
+          const dk = fmtDate(d);
+          const isToday = fmtDate(d) === fmtDate(new Date());
+          const trip = getTripForDay(d);
+          return (
+            <div key={dk} className={`bg-white rounded-2xl p-4 shadow-sm border ${isToday?'border-indigo-300 ring-1 ring-indigo-200': trip ? 'border-purple-200' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-16 flex-shrink-0">
+                  <div className={`text-sm font-semibold ${isToday?'text-indigo-600':'text-slate-700'}`}>{DAYS_FR[d.getDay()===0?6:d.getDay()-1]}</div>
+                  <div className="text-xs text-slate-400">{d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
+                </div>
+                {trip ? (
+                  <div className="flex-1 bg-purple-50 rounded-xl px-3 py-2 flex items-center gap-2 border border-purple-200">
+                    <span className="text-lg">{trip.emoji || '✈️'}</span>
+                    <div>
+                      <div className="text-xs font-semibold text-purple-700">En voyage</div>
+                      <div className="text-xs text-purple-500">{trip.name}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-slate-400 mb-1 text-center">🌅 Dépôt</div>
+                      <PersonBtn dateKey={dk} type="dropoff" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 mb-1 text-center">🌆 Récupération</div>
+                      <PersonBtn dateKey={dk} type="pickup" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Vendredi — alternance Mamie */}
+        {(() => {
+          const isToday = fmtDate(friday) === fmtDate(new Date());
+          const isGuida = mamie === 'Mamie Guida';
+          const trip = getTripForDay(friday);
+          return (
+            <div className={`bg-white rounded-2xl p-4 shadow-sm border ${isToday?'border-indigo-300 ring-1 ring-indigo-200': trip ? 'border-purple-200' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-16 flex-shrink-0">
+                  <div className={`text-sm font-semibold ${isToday?'text-indigo-600':'text-slate-700'}`}>Vendredi</div>
+                  <div className="text-xs text-slate-400">{friday.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
+                </div>
+                {trip ? (
+                  <div className="flex-1 bg-purple-50 rounded-xl px-3 py-2 flex items-center gap-2 border border-purple-200">
+                    <span className="text-lg">{trip.emoji || '✈️'}</span>
+                    <div>
+                      <div className="text-xs font-semibold text-purple-700">En voyage</div>
+                      <div className="text-xs text-purple-500">{trip.name} · {isGuida ? 'Mamie Guida' : 'Mamie Lala'} annulée</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <div className="text-xs text-slate-400 mb-2 text-center">👵 Chez la mamie</div>
+                    <div className={`w-full py-2 px-3 rounded-xl text-sm font-semibold text-center border-2 ${isGuida ? 'bg-green-50 text-green-700 border-green-300' : 'bg-orange-50 text-orange-700 border-orange-300'}`}>
+                      {mamie}
+                    </div>
+                    <div className="text-center mt-1.5">
+                      <span className="text-xs text-slate-400">Semaine suivante : {isGuida ? 'Mamie Lala' : 'Mamie Guida'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      <button onClick={copyWeek}
+        className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-sm text-slate-400 hover:border-indigo-300 hover:text-indigo-500 transition-all">
+        📋 Copier cette semaine → semaine suivante
+      </button>
+    </div>
+  );
+}
+
+// ── Voyages ───────────────────────────────────────────────────────────────────
+const EMOJIS = ['🗺️','✈️','🏖️','🏔️','🏕️','🌍','🗼','🏯','🗽','🎡','🚂','🛳️'];
+
+// Redimensionne une image côté client via Canvas (retourne une dataURL)
+function resizeTripCover(file, maxW=900, maxH=400) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+        const w = Math.round(img.width * ratio);
+        const h = Math.round(img.height * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+// ── Carte du monde Leaflet (liée aux voyages) ─────────────────────────────────
+function WorldMap({ trips }) {
+  const containerRef = useRef(null);
+  const mapRef       = useRef(null);
+  const markersRef   = useRef([]);
+  const initDoneRef  = useRef(false);
+
+  function updateMarkers(currentTrips) {
+    if (!mapRef.current) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    const today = new Date();
+    const withCoords = currentTrips.filter(t => t.lat != null && t.lng != null);
+    if (!withCoords.length) return;
+    const bounds = [];
+    withCoords.forEach(t => {
+      const start = new Date(t.startDate);
+      const end   = t.endDate ? new Date(t.endDate) : start;
+      const isPast    = end < today;
+      const isOngoing = start <= today && end >= today;
+      const color = isOngoing ? '#22c55e' : isPast ? '#94a3b8' : '#6366f1';
+      const ring  = isOngoing ? '#bbf7d0' : isPast ? '#e2e8f0' : '#c7d2fe';
+      const icon = L.divIcon({
+        html: `<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,.3);outline:3px solid ${ring}">${t.emoji||'📍'}</div>`,
+        className:'', iconSize:[32,32], iconAnchor:[16,16], popupAnchor:[0,-18],
+      });
+      const nights = t.endDate ? Math.round((end-start)/86400000) : 0;
+      const dateStr = start.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+      const popup = `<div style="font-family:Inter,sans-serif;min-width:150px;line-height:1.5">
+        <div style="font-weight:700;font-size:13px">${t.emoji} ${t.name}</div>
+        <div style="color:#64748b;font-size:12px">${t.destination}</div>
+        <div style="color:#94a3b8;font-size:11px;margin-top:3px">📅 ${dateStr}${nights>0?` · 🌙 ${nights} nuits`:''}</div>
+        ${isOngoing?'<div style="color:#16a34a;font-size:11px;font-weight:600">🟢 En cours</div>':''}
+      </div>`;
+      const marker = L.marker([t.lat, t.lng], {icon})
+        .bindPopup(popup, {maxWidth:240})
+        .addTo(mapRef.current);
+      markersRef.current.push(marker);
+      bounds.push([t.lat, t.lng]);
+    });
+    if (bounds.length === 1) mapRef.current.setView(bounds[0], 5);
+    else mapRef.current.fitBounds(bounds, {padding:[40,40], maxZoom:6});
+  }
+
+  function initMap(currentTrips) {
+    if (initDoneRef.current || !containerRef.current) return;
+    initDoneRef.current = true;
+    mapRef.current = L.map(containerRef.current, {zoomControl:true, scrollWheelZoom:false})
+      .setView([20, 10], 2);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      subdomains:'abcd', maxZoom:19,
+      attribution:'© <a href="https://carto.com">CARTO</a> © <a href="https://openstreetmap.org">OSM</a>',
+    }).addTo(mapRef.current);
+    updateMarkers(currentTrips);
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => initMap(trips), 60);
+    return () => {
+      clearTimeout(t);
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; initDoneRef.current = false; }
+    };
+  }, []);
+
+  useEffect(() => { updateMarkers(trips); }, [trips]);
+
+  const withCoords = trips.filter(t => t.lat != null);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-slate-700">🌍 Notre carte du monde</h3>
+          <p className="text-xs text-slate-400 mt-0.5">{withCoords.length} destination{withCoords.length!==1?'s':''} · cliquez sur un marqueur</p>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+          <span><span style={{color:'#6366f1'}}>●</span> À venir</span>
+          <span><span style={{color:'#22c55e'}}>●</span> En cours</span>
+          <span><span style={{color:'#94a3b8'}}>●</span> Passés</span>
+        </div>
+      </div>
+      <div style={{position:'relative'}}>
+        <div ref={containerRef} style={{height:'300px', width:'100%'}} />
+        {withCoords.length === 0 && (
+          <div style={{position:'absolute',inset:0,zIndex:500,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(248,250,252,0.92)',gap:'8px'}}>
+            <span style={{fontSize:'40px'}}>🗺️</span>
+            <p style={{color:'#94a3b8',fontSize:'14px'}}>Aucune destination géolocalisée</p>
+            <p style={{color:'#cbd5e1',fontSize:'12px'}}>Renseignez la destination lors de l'ajout d'un voyage</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Géocode une destination via Nominatim (OpenStreetMap, gratuit)
+async function geocodeDestination(destination) {
+  if (!destination) return null;
+  try {
+    const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`);
+    const json = await res.json();
+    if (json[0]) return { lat: parseFloat(json[0].lat), lng: parseFloat(json[0].lon) };
+  } catch {}
+  return null;
+}
+
+function TripPlanner({ trips, setTrips }) {
+  const [modal, setModal] = useState(false);
+  const [editTrip, setEditTrip] = useState(null);
+  const [form, setForm] = useState({name:'',destination:'',startDate:'',endDate:'',emoji:'✈️',notes:'',budget:''});
+  const [geocoding, setGeocoding] = useState(false);
+  const coverInputRef = useRef(null);
+
+  function openAdd() { setForm({name:'',destination:'',startDate:'',endDate:'',emoji:'✈️',notes:'',budget:'',cover:''}); setEditTrip(null); setModal(true); }
+  function openEdit(t) { setForm({...t, cover: t.cover||''}); setEditTrip(t.id); setModal(true); }
+
+  async function handleCoverChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await resizeTripCover(file);
+      setForm(p => ({...p, cover: dataUrl}));
+    } catch { /* ignore */ }
+  }
+  async function save() {
+    if (!form.name || !form.startDate) return;
+    let { lat, lng } = form;
+    const original = editTrip ? trips.find(t => t.id === editTrip) : null;
+    const destChanged = !original || original.destination !== form.destination;
+    if (form.destination && (destChanged || lat == null)) {
+      setGeocoding(true);
+      const coords = await geocodeDestination(form.destination);
+      if (coords) { lat = coords.lat; lng = coords.lng; }
+      setGeocoding(false);
+    }
+    const tripData = { ...form, lat, lng };
+    if (editTrip) {
+      setTrips(p => p.map(t => t.id===editTrip ? {...tripData, id:editTrip} : t));
+    } else {
+      setTrips(p => [...p, {...tripData, id:uid()}]);
+    }
+    setModal(false);
+  }
+  function remove(id) { if (confirm('Supprimer ce voyage ?')) setTrips(p => p.filter(t => t.id!==id)); }
+
+  const today = new Date();
+  const past = trips.filter(t => new Date(t.endDate||t.startDate) < today).sort((a,b) => new Date(b.startDate)-new Date(a.startDate));
+  const upcoming = trips.filter(t => new Date(t.startDate) >= today).sort((a,b) => new Date(a.startDate)-new Date(b.startDate));
+  const ongoing = trips.filter(t => new Date(t.startDate) <= today && new Date(t.endDate||t.startDate) >= today);
+
+  function TripCard({ t }) {
+    const start = new Date(t.startDate);
+    const end = t.endDate ? new Date(t.endDate) : null;
+    const nights = end ? Math.round((end-start)/86400000) : 0;
+    const daysLeft = Math.ceil((start-today)/86400000);
+    const isOngoing = start <= today && (!end || end >= today);
+
+    const headerStyle = t.cover
+      ? { backgroundImage:`url(${t.cover})`, backgroundSize:'cover', backgroundPosition:'center' }
+      : {};
+
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow">
+        <div className={t.cover ? '' : 'trip-card'} style={headerStyle}>
+          {/* Overlay sombre si photo */}
+          <div style={t.cover ? {background:'linear-gradient(135deg,rgba(30,15,60,.62) 0%,rgba(80,40,120,.52) 100%)',padding:'16px'} : {padding:'16px'}}>
+            <div className="flex items-start justify-between text-white">
+              <div>
+                <div className="text-3xl mb-1">{t.emoji}</div>
+                <h3 className="font-bold text-lg leading-tight drop-shadow">{t.name}</h3>
+                <p className="text-purple-200 text-sm drop-shadow">{t.destination}</p>
+              </div>
+              <div className="text-right">
+                {isOngoing
+                  ? <Pill color="green">En cours</Pill>
+                  : daysLeft > 0
+                    ? <div className="bg-white/20 rounded-xl px-3 py-1 text-center backdrop-blur-sm"><div className="text-2xl font-bold">{daysLeft}</div><div className="text-xs text-purple-200">jours</div></div>
+                    : <Pill color="purple">Passé</Pill>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 py-3">
+          <div className="flex gap-4 text-xs text-slate-500 mb-2">
+            <span>📅 {start.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}</span>
+            {end && <span>→ {end.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}</span>}
+            {nights > 0 && <span>🌙 {nights} nuits</span>}
+            {t.budget && <span>💶 {t.budget}</span>}
+          </div>
+          {t.notes && <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-2 mb-2">{t.notes}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => openEdit(t)} className="flex-1 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">✏️ Modifier</button>
+            <button onClick={() => remove(t.id)} className="px-3 py-1.5 text-xs text-rose-500 border border-rose-200 rounded-lg hover:bg-rose-50">✕</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade-in space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">✈️ Voyages & Vacances</h2>
+        <button onClick={openAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700">+ Ajouter</button>
+      </div>
+
+      {/* Carte du monde */}
+      <WorldMap trips={trips} />
+
+      {ongoing.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">🟢 En cours</p>
+          <div className="grid gap-3">{ongoing.map(t => <TripCard key={t.id} t={t} />)}</div>
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">📅 À venir</p>
+          <div className="grid gap-3">{upcoming.map(t => <TripCard key={t.id} t={t} />)}</div>
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">📖 Passés</p>
+          <div className="grid gap-3">{past.map(t => <TripCard key={t.id} t={t} />)}</div>
+        </div>
+      )}
+
+      {trips.length === 0 && (
+        <div className="text-center py-16 text-slate-400">
+          <div className="text-5xl mb-3">✈️</div>
+          <p className="font-medium text-slate-600 mb-1">Aucun voyage planifié</p>
+          <p className="text-sm">Commencez par ajouter votre prochain voyage !</p>
+          <button onClick={openAdd} className="mt-4 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700">Planifier un voyage</button>
+        </div>
+      )}
+
+      <Modal open={modal} onClose={() => setModal(false)} title={editTrip ? 'Modifier le voyage' : 'Nouveau voyage'}>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nom du voyage *</label>
+            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ex: Vacances d'été à Barcelone"
+              value={form.name} onChange={e => setForm(p=>({...p,name:e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Destination</label>
+            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ex: Barcelone, Espagne"
+              value={form.destination} onChange={e => setForm(p=>({...p,destination:e.target.value}))} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Départ *</label>
+              <input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                value={form.startDate} onChange={e => setForm(p=>({...p,startDate:e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Retour</label>
+              <input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                value={form.endDate} onChange={e => setForm(p=>({...p,endDate:e.target.value}))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Budget</label>
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="Ex: 2000€"
+                value={form.budget} onChange={e => setForm(p=>({...p,budget:e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Icône</label>
+              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                value={form.emoji} onChange={e => setForm(p=>({...p,emoji:e.target.value}))}>
+                {EMOJIS.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+            <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+              rows={2} placeholder="Hébergement, activités, notes..."
+              value={form.notes} onChange={e => setForm(p=>({...p,notes:e.target.value}))} />
+          </div>
+
+          {/* Photo de couverture */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">🖼️ Photo de couverture</label>
+            {form.cover ? (
+              <div className="relative rounded-xl overflow-hidden" style={{height:'110px'}}>
+                <img src={form.cover} alt="couverture" className="w-full h-full object-cover" />
+                <div style={{position:'absolute',inset:0,background:'linear-gradient(135deg,rgba(30,15,60,.55) 0%,rgba(80,40,120,.45) 100%)'}} />
+                <button type="button"
+                  onClick={() => setForm(p=>({...p,cover:''}))}
+                  style={{position:'absolute',top:'8px',right:'8px'}}
+                  className="bg-black/50 text-white text-xs px-2 py-1 rounded-lg hover:bg-black/70 backdrop-blur-sm">
+                  ✕ Retirer
+                </button>
+                <button type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  style={{position:'absolute',bottom:'8px',right:'8px'}}
+                  className="bg-black/50 text-white text-xs px-2 py-1 rounded-lg hover:bg-black/70 backdrop-blur-sm">
+                  🔄 Changer
+                </button>
+              </div>
+            ) : (
+              <button type="button"
+                onClick={() => coverInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-slate-200 rounded-xl py-4 text-sm text-slate-400 hover:border-indigo-300 hover:text-indigo-500 transition-colors">
+                📷 Choisir une photo
+              </button>
+            )}
+            <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+          </div>
+
+          {geocoding && <p className="text-xs text-indigo-500 text-center animate-pulse">🌍 Géolocalisation…</p>}
+          <div className="flex gap-2 pt-1">
+            <button onClick={save} disabled={geocoding} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-60">
+              {geocoding ? '⏳' : editTrip ? 'Enregistrer' : 'Créer le voyage'}
+            </button>
+            <button onClick={() => setModal(false)} disabled={geocoding} className="flex-1 border border-slate-200 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50">Annuler</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Google Calendar ───────────────────────────────────────────────────────────
+function extractSrcs(url) {
+  if (!url) return [];
+  try { return new URL(url).searchParams.getAll('src'); }
+  catch { return []; }
+}
+function buildCombinedUrl(url1, url2) {
+  const srcs = [...extractSrcs(url1), ...extractSrcs(url2)];
+  if (!srcs.length) return url1 || '';
+  let ctz = '';
+  try { ctz = new URL(url1).searchParams.get('ctz') || ''; } catch {}
+  const params = srcs.map(s => `src=${encodeURIComponent(decodeURIComponent(s))}`).join('&');
+  return `https://calendar.google.com/calendar/embed?${params}${ctz ? `&ctz=${encodeURIComponent(ctz)}` : ''}`;
+}
+
+function CalendarView({ settings }) {
+  if (!settings.calendarUrl) {
+    return (
+      <div className="fade-in">
+        <h2 className="text-xl font-bold text-slate-800 mb-4">📅 Google Calendar</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
+          <div className="text-5xl mb-4">📅</div>
+          <h3 className="font-semibold text-slate-700 mb-2">Connectez votre Google Calendar</h3>
+          <p className="text-sm text-slate-500 mb-4">Pour afficher votre calendrier ici, suivez ces étapes :</p>
+          <div className="text-left bg-slate-50 rounded-xl p-4 text-sm text-slate-600 space-y-2 mb-4">
+            <p><span className="font-semibold text-indigo-600">1.</span> Ouvrez <strong>Google Calendar</strong> sur votre ordinateur</p>
+            <p><span className="font-semibold text-indigo-600">2.</span> Cliquez sur ⚙️ <strong>Paramètres</strong></p>
+            <p><span className="font-semibold text-indigo-600">3.</span> Dans la colonne de gauche, sélectionnez votre calendrier</p>
+            <p><span className="font-semibold text-indigo-600">4.</span> Scrollez jusqu'à <strong>"Intégrer le calendrier"</strong></p>
+            <p><span className="font-semibold text-indigo-600">5.</span> Copiez l'<strong>URL d'intégration</strong> (lien iframe)</p>
+            <p><span className="font-semibold text-indigo-600">6.</span> Collez-la dans ⚙️ <strong>Paramètres</strong> de cette app</p>
+          </div>
+          <p className="text-xs text-slate-400">L'URL ressemble à : https://calendar.google.com/calendar/embed?src=xxx</p>
+        </div>
+      </div>
+    );
+  }
+  const url = buildCombinedUrl(settings.calendarUrl, settings.calendarUrl2);
+  return (
+    <div className="fade-in space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">📅 Google Calendar</h2>
+        <a href={url} target="_blank" rel="noreferrer"
+          className="text-xs text-indigo-500 hover:underline">Ouvrir dans Google Calendar →</a>
+      </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <iframe key={url} src={url} style={{border:0}} width="100%" height="650" frameBorder="0" scrolling="no" title="Google Calendar" />
+      </div>
+      <p className="text-xs text-slate-400 text-center">Si le calendrier ne s'affiche pas, cliquez sur "Ouvrir dans Google Calendar" ci-dessus.</p>
+    </div>
+  );
+}
+
+// ── Photos ────────────────────────────────────────────────────────────────────
+function usePhotoDB() {
+  const [photos, setPhotos] = useLocalStorage('photos', []);
+
+  async function resizeImage(file, maxPx = 1200, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = e => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function addPhotos(files) {
+    const added = [];
+    for (const file of Array.from(files)) {
+      try {
+        const url = await resizeImage(file);
+        added.push({ id: uid(), url, name: file.name, added: Date.now() });
+      } catch(err) { console.warn('Photo ignorée :', file.name, err); }
+    }
+    if (added.length) setPhotos(p => [...p, ...added]);
+  }
+
+  function removePhoto(id) {
+    setPhotos(p => p.filter(ph => ph.id !== id));
+  }
+
+  return { photos, addPhotos, removePhoto };
+}
+
+function PhotoWidget({ photos, setTab }) {
+  const [idx, setIdx] = useState(0);
+  const [full, setFull] = useState(false);
+
+  useEffect(() => {
+    if (photos.length < 2) return;
+    const t = setInterval(() => setIdx(p => (p+1) % photos.length), 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [photos.length]);
+
+  useEffect(() => { if (photos.length && idx >= photos.length) setIdx(0); }, [photos.length]);
+
+  if (!photos.length) return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-dashed border-slate-200 text-center">
+      <div className="text-3xl mb-2">🖼️</div>
+      <p className="text-sm text-slate-400">
+        <button onClick={() => setTab('photos')} className="text-indigo-500 hover:underline font-medium">Ajoutez des photos</button> — elles défileront toutes les 5 min
+      </p>
+    </div>
+  );
+
+  const photo = photos[idx];
+  return (
+    <>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="relative cursor-pointer" onClick={() => setFull(true)}>
+          <img src={photo.url} alt={photo.name} className="w-full object-cover" style={{height:'220px'}} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+          <div className="absolute bottom-2 right-2 bg-black/30 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">
+            {idx+1} / {photos.length}
+          </div>
+          <div className="absolute top-2 right-2 bg-black/30 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">⛶ plein écran</div>
+        </div>
+        <div className="px-4 py-2 flex items-center gap-2">
+          <button onClick={() => setIdx(p => (p-1+photos.length)%photos.length)} className="text-slate-400 hover:text-slate-700 px-1 text-lg">◀</button>
+          <div className="flex-1 flex justify-center gap-1.5">
+            {photos.slice(0, 12).map((_,i) => (
+              <button key={i} onClick={() => setIdx(i)}
+                className={`rounded-full transition-all duration-200 ${i===idx ? 'bg-indigo-500 w-4 h-2' : 'bg-slate-200 w-2 h-2 hover:bg-slate-400'}`} />
+            ))}
+            {photos.length > 12 && <span className="text-xs text-slate-400 self-center">+{photos.length-12}</span>}
+          </div>
+          <button onClick={() => setIdx(p => (p+1)%photos.length)} className="text-slate-400 hover:text-slate-700 px-1 text-lg">▶</button>
+          <button onClick={() => setTab('photos')} className="text-xs text-indigo-400 hover:underline ml-1 flex-shrink-0">Gérer →</button>
+        </div>
+      </div>
+      {full && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setFull(false)}>
+          <img src={photo.url} alt={photo.name} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+          <button className="absolute top-4 right-4 text-white text-2xl opacity-70 hover:opacity-100">✕</button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function PhotoManager({ photos, addPhotos, removePhoto }) {
+  const inputRef = useRef(null);
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">🖼️ Photos</h2>
+        <button onClick={() => inputRef.current.click()} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700">+ Ajouter</button>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
+        onChange={e => { addPhotos(e.target.files); e.target.value=''; }} />
+
+      {!photos.length ? (
+        <div className="text-center py-16 text-slate-400">
+          <div className="text-5xl mb-3">🖼️</div>
+          <p className="font-medium text-slate-600 mb-1">Aucune photo pour l'instant</p>
+          <p className="text-sm mb-5 max-w-xs mx-auto">Les photos défilent automatiquement dans l'accueil toutes les 5 minutes</p>
+          <button onClick={() => inputRef.current.click()}
+            className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700">
+            Choisir des photos
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            {photos.map(p => (
+              <div key={p.id} className="relative rounded-2xl overflow-hidden bg-slate-100 group" style={{aspectRatio:'1'}}>
+                <img src={p.url} alt={p.name} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
+                <button onClick={() => removePhoto(p.id)}
+                  className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 text-sm flex items-center justify-center hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100">✕</button>
+              </div>
+            ))}
+            <button onClick={() => inputRef.current.click()}
+              className="rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-300 hover:text-indigo-400 transition-all"
+              style={{aspectRatio:'1'}}>
+              <span className="text-3xl">+</span>
+              <span className="text-xs mt-1">Ajouter</span>
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 text-center">Photos stockées dans ce navigateur · Défilement toutes les 5 min</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Domotique — Tuya API helpers ──────────────────────────────────────────────
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function hmacSHA256Upper(secret, data) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+let _tuyaCache = { token: null, expiry: 0 };
+async function tuyaGetToken(accessId, secret, region) {
+  if (_tuyaCache.token && Date.now() < _tuyaCache.expiry) return _tuyaCache.token;
+  const t = String(Date.now()), nonce = uid();
+  const sts = ['GET', await sha256Hex(''), '', '/v1.0/token?grant_type=1'].join('\n');
+  const sign = await hmacSHA256Upper(secret, accessId + t + nonce + sts);
+  const res = await fetch(`https://openapi.tuya${region}.com/v1.0/token?grant_type=1`, {
+    headers: { 'client_id': accessId, 'sign': sign, 't': t, 'nonce': nonce, 'sign_method': 'HMAC-SHA256' }
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(`Tuya auth échouée : ${json.msg}`);
+  _tuyaCache = { token: json.result.access_token, expiry: Date.now() + (json.result.expire_time - 60) * 1000 };
+  return _tuyaCache.token;
+}
+async function tuyaReq(cfg, method, path, body = null) {
+  const { accessId, secret, region } = cfg;
+  const token = await tuyaGetToken(accessId, secret, region || 'eu');
+  const t = String(Date.now()), nonce = uid();
+  const bodyStr = body ? JSON.stringify(body) : '';
+  const sts = [method, await sha256Hex(bodyStr), '', path].join('\n');
+  const sign = await hmacSHA256Upper(secret, accessId + token + t + nonce + sts);
+  const res = await fetch(`https://openapi.tuya${region || 'eu'}.com${path}`, {
+    method,
+    headers: { 'client_id': accessId, 'access_token': token, 'sign': sign, 't': t, 'nonce': nonce, 'sign_method': 'HMAC-SHA256', 'Content-Type': 'application/json' },
+    body: body ? bodyStr : undefined
+  });
+  return res.json();
+}
+
+// ── Anniversaires ─────────────────────────────────────────────────────────────
+const ANNIV_EMOJIS = ['🎂','🎁','🌹','⭐','🎉','👶','💍','🏆','🐣','🦁'];
+
+function nextOccurrence(day, month) {
+  const now = new Date();
+  const thisYear = new Date(now.getFullYear(), month - 1, day);
+  if (thisYear > now) return thisYear;
+  return new Date(now.getFullYear() + 1, month - 1, day);
+}
+function daysUntil(day, month) {
+  const next = nextOccurrence(day, month);
+  return Math.ceil((next - new Date()) / 86400000);
+}
+
+function Anniversaires({ anniversaires, setAnniversaires }) {
+  const [modal, setModal] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [form, setForm] = useState({ name:'', day:'', month:'', year:'', emoji:'🎂' });
+
+  function openAdd() { setForm({ name:'', day:'', month:'', year:'', emoji:'🎂' }); setEdit(null); setModal(true); }
+  function openEdit(a) { setForm(a); setEdit(a.id); setModal(true); }
+  function save() {
+    if (!form.name || !form.day || !form.month) return;
+    if (edit) setAnniversaires(p => p.map(a => a.id === edit ? {...form, id: edit} : a));
+    else setAnniversaires(p => [...p, {...form, id: uid()}]);
+    setModal(false);
+  }
+  function remove(id) { setAnniversaires(p => p.filter(a => a.id !== id)); }
+
+  const sorted = [...anniversaires].sort((a, b) => daysUntil(a.day, a.month) - daysUntil(b.day, b.month));
+
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">🎂 Anniversaires</h2>
+        <button onClick={openAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700">+ Ajouter</button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <div className="text-5xl mb-3">🎂</div>
+          <p className="font-medium text-slate-600 mb-1">Aucun anniversaire</p>
+          <p className="text-sm mb-5">Ajoutez vos proches pour ne plus jamais oublier</p>
+          <button onClick={openAdd} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700">Ajouter</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sorted.map(a => {
+            const days = daysUntil(a.day, a.month);
+            const isToday = days === 0;
+            const isSoon = days <= 7;
+            const age = a.year ? new Date().getFullYear() - a.year + (days === 0 ? 0 : 0) : null;
+            return (
+              <div key={a.id} className={`bg-white rounded-2xl p-4 shadow-sm border flex items-center gap-4 ${isToday ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-slate-100'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 ${isToday ? 'bg-indigo-100' : 'bg-slate-50'}`}>{a.emoji}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-800 truncate">{a.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {String(a.day).padStart(2,'0')}/{String(a.month).padStart(2,'0')}{a.year ? `/${a.year}` : ''}
+                    {age !== null && <span className="ml-1">· {age} ans</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isToday
+                    ? <span className="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">Aujourd'hui 🎉</span>
+                    : <div className={`text-center rounded-xl px-3 py-1 ${isSoon ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-500'}`}>
+                        <div className="text-lg font-bold leading-none">{days}</div>
+                        <div className="text-xs">jours</div>
+                      </div>
+                  }
+                  <button onClick={() => openEdit(a)} className="text-slate-300 hover:text-indigo-500 text-sm">✏️</button>
+                  <button onClick={() => remove(a.id)} className="text-slate-300 hover:text-rose-400 text-sm">✕</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Modal open={modal} onClose={() => setModal(false)} title={edit ? 'Modifier' : '🎂 Nouvel anniversaire'}>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Prénom / Nom *</label>
+            <input autoFocus className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ex: Mamie Lala" value={form.name} onChange={e => setForm(p=>({...p,name:e.target.value}))} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Jour *</label>
+              <input type="number" min="1" max="31" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="15" value={form.day} onChange={e => setForm(p=>({...p,day:e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mois *</label>
+              <input type="number" min="1" max="12" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="3" value={form.month} onChange={e => setForm(p=>({...p,month:e.target.value}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Année</label>
+              <input type="number" min="1900" max="2030" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="1980" value={form.year} onChange={e => setForm(p=>({...p,year:e.target.value}))} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Icône</label>
+            <div className="flex gap-2 flex-wrap">
+              {ANNIV_EMOJIS.map(e => (
+                <button key={e} onClick={() => setForm(p=>({...p,emoji:e}))}
+                  className={`text-xl p-1.5 rounded-lg transition-all ${form.emoji===e ? 'bg-indigo-100 ring-2 ring-indigo-400' : 'hover:bg-slate-100'}`}>{e}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={save} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
+            <button onClick={() => setModal(false)} className="flex-1 border border-slate-200 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Pense-bête ─────────────────────────────────────────────────────────────────
+const NOTE_COLORS = {
+  yellow: { bg:'bg-amber-50',  border:'border-amber-200',  dot:'bg-amber-400',  dark:'rgba(245,158,11,.15)' },
+  blue:   { bg:'bg-blue-50',   border:'border-blue-200',   dot:'bg-blue-400',   dark:'rgba(59,130,246,.15)' },
+  green:  { bg:'bg-green-50',  border:'border-green-200',  dot:'bg-green-400',  dark:'rgba(34,197,94,.15)'  },
+  pink:   { bg:'bg-pink-50',   border:'border-pink-200',   dot:'bg-pink-400',   dark:'rgba(236,72,153,.15)' },
+  purple: { bg:'bg-purple-50', border:'border-purple-200', dot:'bg-purple-400', dark:'rgba(168,85,247,.15)' },
+};
+
+function PenseBete({ notes, setNotes }) {
+  const [modal, setModal] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [form, setForm] = useState({ title:'', content:'', color:'yellow', pinned:false });
+
+  function openAdd() { setForm({ title:'', content:'', color:'yellow', pinned:false }); setEdit(null); setModal(true); }
+  function openEdit(n) { setForm(n); setEdit(n.id); setModal(true); }
+  function save() {
+    if (!form.content.trim()) return;
+    if (edit) setNotes(p => p.map(n => n.id === edit ? {...form, id:edit} : n));
+    else setNotes(p => [...p, {...form, id:uid(), created:Date.now()}]);
+    setModal(false);
+  }
+  function remove(id) { setNotes(p => p.filter(n => n.id !== id)); }
+  function togglePin(id) { setNotes(p => p.map(n => n.id===id ? {...n, pinned:!n.pinned} : n)); }
+
+  const pinned = notes.filter(n => n.pinned).sort((a,b) => b.created - a.created);
+  const rest = notes.filter(n => !n.pinned).sort((a,b) => b.created - a.created);
+  const sorted = [...pinned, ...rest];
+
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">📝 Pense-bête</h2>
+        <button onClick={openAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700">+ Ajouter</button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <div className="text-5xl mb-3">📝</div>
+          <p className="font-medium text-slate-600 mb-1">Aucune note</p>
+          <p className="text-sm mb-5">Notez vos rappels, idées, choses à faire...</p>
+          <button onClick={openAdd} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700">Créer une note</button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {sorted.map(n => {
+            const c = NOTE_COLORS[n.color] || NOTE_COLORS.yellow;
+            return (
+              <div key={n.id} className={`${c.bg} ${c.border} border rounded-2xl p-3 flex flex-col gap-2 relative`}>
+                {n.pinned && <span className="absolute top-2 right-2 text-xs">📌</span>}
+                {n.title && <div className="font-semibold text-slate-700 text-sm pr-5 leading-tight">{n.title}</div>}
+                <div className="text-sm text-slate-600 leading-snug flex-1 whitespace-pre-wrap">{n.content}</div>
+                <div className="flex gap-1 justify-end">
+                  <button onClick={() => togglePin(n.id)} className="text-slate-400 hover:text-slate-600 text-xs p-1" title={n.pinned?'Désépingler':'Épingler'}>📌</button>
+                  <button onClick={() => openEdit(n)} className="text-slate-400 hover:text-slate-600 text-xs p-1">✏️</button>
+                  <button onClick={() => remove(n.id)} className="text-slate-400 hover:text-rose-400 text-xs p-1">✕</button>
+                </div>
+              </div>
+            );
+          })}
+          <button onClick={openAdd}
+            className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:border-indigo-300 hover:text-indigo-400 transition-all min-h-24">
+            <span className="text-2xl">+</span>
+            <span className="text-xs mt-1">Nouvelle note</span>
+          </button>
+        </div>
+      )}
+
+      <Modal open={modal} onClose={() => setModal(false)} title={edit ? 'Modifier la note' : '📝 Nouvelle note'}>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Titre <span className="text-slate-400 font-normal">(optionnel)</span></label>
+            <input autoFocus className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ex: À ne pas oublier" value={form.title} onChange={e => setForm(p=>({...p,title:e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Note *</label>
+            <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+              rows={4} placeholder="Écrivez votre note..." value={form.content} onChange={e => setForm(p=>({...p,content:e.target.value}))} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Couleur</label>
+            <div className="flex gap-2">
+              {Object.entries(NOTE_COLORS).map(([key,c]) => (
+                <button key={key} onClick={() => setForm(p=>({...p,color:key}))}
+                  className={`w-8 h-8 rounded-full ${c.dot} transition-all ${form.color===key ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'opacity-70 hover:opacity-100'}`} />
+              ))}
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="accent-indigo-600" checked={form.pinned} onChange={e => setForm(p=>({...p,pinned:e.target.checked}))} />
+            <span className="text-sm text-slate-700">📌 Épingler cette note</span>
+          </label>
+          <div className="flex gap-2 pt-1">
+            <button onClick={save} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
+            <button onClick={() => setModal(false)} className="flex-1 border border-slate-200 rounded-lg py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Domotique — composants ────────────────────────────────────────────────────
+const VACUUM_LABELS = { standby:'En veille', cleaning:'Nettoyage…', returning:'Retour base', charging:'En charge', paused:'En pause', sleep:'Endormi', goto:'Se déplace' };
+const PLUG_ICONS_LIST = ['💡','🔌','📺','🖥️','🎮','🎵','❄️','🍳','☕','🛋️','🪴','🏮'];
+
+function useDomotique(cfg) {
+  const [states, setStates] = useState({});
+  const [loading, setLoading] = useState({});
+  const [apiError, setApiError] = useState(null);
+  const hasTuya = !!(cfg?.tuya?.accessId && cfg?.tuya?.secret);
+
+  async function refresh() {
+    if (!hasTuya) return;
+    setApiError(null);
+    try {
+      if (cfg.vacuum?.enabled && cfg.vacuum?.deviceId) {
+        const r = await tuyaReq(cfg.tuya, 'GET', `/v1.0/devices/${cfg.vacuum.deviceId}/status`);
+        if (r.success) {
+          const st = {}; r.result.forEach(i => { st[i.code] = i.value; });
+          setStates(p => ({...p, vacuum: st}));
+        }
+      }
+      for (const plug of (cfg.plugs || [])) {
+        if (plug.deviceId) {
+          const r = await tuyaReq(cfg.tuya, 'GET', `/v1.0/devices/${plug.deviceId}/status`);
+          if (r.success) {
+            const on = r.result.find(i => ['switch_1','switch'].includes(i.code))?.value ?? false;
+            setStates(p => ({...p, [plug.id]: {on}}));
+          }
+        }
+      }
+    } catch(e) { setApiError(e.message); }
+  }
+
+  async function vacuumCmd(cmd) {
+    if (!hasTuya || !cfg.vacuum?.deviceId) return;
+    setLoading(p => ({...p, vacuum:true})); setApiError(null);
+    const map = { start:[{code:'switch_go',value:true}], stop:[{code:'switch_go',value:false}], home:[{code:'switch_return',value:true}] };
+    try { await tuyaReq(cfg.tuya, 'POST', `/v1.0/devices/${cfg.vacuum.deviceId}/commands`, {commands:map[cmd]}); setTimeout(refresh, 2000); }
+    catch(e) { setApiError(e.message); }
+    setLoading(p => ({...p, vacuum:false}));
+  }
+
+  async function togglePlug(plug) {
+    const isOn = states[plug.id]?.on ?? false;
+    setLoading(p => ({...p, [plug.id]:true})); setApiError(null);
+    if (hasTuya && plug.deviceId) {
+      try { await tuyaReq(cfg.tuya, 'POST', `/v1.0/devices/${plug.deviceId}/commands`, {commands:[{code:'switch_1',value:!isOn}]}); }
+      catch(e) { setApiError(e.message); }
+    }
+    setStates(p => ({...p, [plug.id]:{on:!isOn}}));
+    setLoading(p => ({...p, [plug.id]:false}));
+  }
+
+  useEffect(() => { refresh(); }, [JSON.stringify(cfg?.tuya), cfg?.vacuum?.deviceId, (cfg?.plugs||[]).map(p=>p.deviceId).join()]);
+  return { states, loading, apiError, refresh, vacuumCmd, togglePlug, hasTuya };
+}
+
+function DomotiqueConfig({ cfg, setCfg, onSave }) {
+  const tuya = cfg?.tuya || {};
+  const vacuum = cfg?.vacuum || {enabled:false, deviceId:'', name:'MOVA'};
+  const plugs = cfg?.plugs || [];
+  const set = (section, k, v) => setCfg(p => ({...p, [section]:{...(p[section]||{}), [k]:v}}));
+  const addPlug = () => setCfg(p => ({...p, plugs:[...(p.plugs||[]), {id:uid(), name:'Prise', icon:'💡', deviceId:''}]}));
+  const upPlug = (id, k, v) => setCfg(p => ({...p, plugs:p.plugs.map(pl => pl.id===id?{...pl,[k]:v}:pl)}));
+  const delPlug = id => setCfg(p => ({...p, plugs:p.plugs.filter(pl => pl.id!==id)}));
+
+  return (
+    <div className="space-y-5 overflow-y-auto max-h-[72vh] pr-1">
+      {/* Tuya */}
+      <div>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">🔑 Tuya API</p>
+        <div className="space-y-2">
+          <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            placeholder="Access ID (Client ID)" value={tuya.accessId||''} onChange={e => set('tuya','accessId',e.target.value)} />
+          <input type="password" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            placeholder="Access Secret" value={tuya.secret||''} onChange={e => set('tuya','secret',e.target.value)} />
+          <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            value={tuya.region||'eu'} onChange={e => set('tuya','region',e.target.value)}>
+            <option value="eu">🇪🇺 Europe</option><option value="us">🇺🇸 USA</option><option value="cn">🇨🇳 Chine</option>
+          </select>
+        </div>
+        <a href="https://iot.tuya.com" target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline mt-1.5 inline-block">→ Créer une clé API gratuite sur iot.tuya.com</a>
+      </div>
+
+      {/* Vacuum */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">🤖 Aspirateur MOVA</p>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-indigo-600" checked={vacuum.enabled||false} onChange={e => set('vacuum','enabled',e.target.checked)} />
+            <span className="text-xs text-slate-600">Activer</span>
+          </label>
+        </div>
+        <div className="space-y-2">
+          <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            placeholder="Nom (ex: MOVA Salon)" value={vacuum.name||''} onChange={e => set('vacuum','name',e.target.value)} />
+          <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            placeholder="Device ID Tuya" value={vacuum.deviceId||''} onChange={e => set('vacuum','deviceId',e.target.value)} />
+        </div>
+        <p className="text-xs text-slate-400 mt-1">App Tuya Smart → appareil → ⋮ → Informations sur le périphérique</p>
+      </div>
+
+      {/* Plugs */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">💡 Prises Meross</p>
+          <button onClick={addPlug} className="text-xs text-indigo-500 hover:underline font-medium">+ Ajouter</button>
+        </div>
+        <p className="text-xs text-slate-400 mb-2">Ajoutez les prises dans <strong>Tuya Smart</strong> ou <strong>Smart Life</strong> pour obtenir leur Device ID</p>
+        <div className="space-y-2">
+          {plugs.map(plug => (
+            <div key={plug.id} className="border border-slate-200 rounded-xl p-3 space-y-2">
+              <div className="flex gap-2 items-center">
+                <select className="border border-slate-200 rounded-lg p-1 text-xl focus:outline-none"
+                  value={plug.icon||'💡'} onChange={e => upPlug(plug.id,'icon',e.target.value)}>
+                  {PLUG_ICONS_LIST.map(ic => <option key={ic} value={ic}>{ic}</option>)}
+                </select>
+                <input className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="Nom (ex: Lampe salon)" value={plug.name||''} onChange={e => upPlug(plug.id,'name',e.target.value)} />
+                <button onClick={() => delPlug(plug.id)} className="text-slate-300 hover:text-rose-400 px-1">✕</button>
+              </div>
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="Device ID Tuya (optionnel — sans ID = toggle manuel)" value={plug.deviceId||''} onChange={e => upPlug(plug.id,'deviceId',e.target.value)} />
+            </div>
+          ))}
+          {!plugs.length && <p className="text-xs text-center text-slate-400 py-2">Aucune prise — cliquez sur "+ Ajouter"</p>}
+        </div>
+      </div>
+
+      <button onClick={onSave} className="w-full bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
+    </div>
+  );
+}
+
+function Domotique({ cfg, setCfg }) {
+  const { states, loading, apiError, refresh, vacuumCmd, togglePlug, hasTuya } = useDomotique(cfg);
+  const [showCfg, setShowCfg] = useState(false);
+  const [editCfg, setEditCfg] = useState(cfg);
+  const vacuum = cfg?.vacuum || {};
+  const plugs = cfg?.plugs || [];
+
+  function openCfg() { setEditCfg(cfg); setShowCfg(true); }
+  function saveCfg() { setCfg(editCfg); _tuyaCache = {token:null, expiry:0}; setShowCfg(false); }
+
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">🏠 Domotique</h2>
+        <div className="flex gap-2">
+          <button onClick={refresh} className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 text-base" title="Actualiser">🔄</button>
+          <button onClick={openCfg} className="px-3 py-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 text-sm font-medium">⚙️ Config</button>
+        </div>
+      </div>
+
+      {apiError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2 flex items-center gap-2 text-sm text-rose-600">
+          <span>⚠️</span><span className="flex-1 truncate">{apiError}</span>
+        </div>
+      )}
+
+      {!hasTuya && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+          <div className="text-4xl mb-2">🔑</div>
+          <p className="font-semibold text-amber-800 mb-1">Clés API Tuya manquantes</p>
+          <p className="text-sm text-amber-600 mb-4 max-w-xs mx-auto">Connectez votre compte Tuya pour piloter l'aspirateur MOVA et les prises Meross</p>
+          <button onClick={openCfg} className="bg-amber-500 text-white px-5 py-2 rounded-xl text-sm font-medium hover:bg-amber-600">Configurer maintenant</button>
+          <p className="text-xs text-amber-500 mt-3">Compte développeur gratuit sur iot.tuya.com · 5 min</p>
+        </div>
+      )}
+
+      {/* Aspirateur */}
+      {vacuum.enabled && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-4xl">🤖</span>
+              <div>
+                <div className="font-semibold text-slate-800">{vacuum.name || 'Aspirateur MOVA'}</div>
+                <div className={`text-xs ${states.vacuum ? 'text-green-600' : 'text-slate-400'}`}>
+                  {states.vacuum ? (VACUUM_LABELS[states.vacuum.status] || states.vacuum.status || 'Connecté') : hasTuya ? 'Chargement…' : 'Non configuré'}
+                </div>
+              </div>
+            </div>
+            {states.vacuum?.electricity !== undefined && (
+              <div className="text-center bg-slate-50 rounded-xl px-3 py-2">
+                <div className="text-xl font-bold text-slate-700">{states.vacuum.electricity}%</div>
+                <div className="text-xs text-slate-400">🔋</div>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              {cmd:'start', icon:'▶️', label:'Démarrer', cls:'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'},
+              {cmd:'stop',  icon:'⏸️', label:'Pause',    cls:'bg-amber-50  border-amber-200  text-amber-700  hover:bg-amber-100'},
+              {cmd:'home',  icon:'🏠', label:'Retour base', cls:'bg-blue-50 border-blue-200  text-blue-700  hover:bg-blue-100'},
+            ].map(({cmd,icon,label,cls}) => (
+              <button key={cmd} onClick={() => vacuumCmd(cmd)} disabled={loading.vacuum || !hasTuya}
+                className={`${cls} border rounded-xl py-3 text-xs font-semibold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed`}>
+                <span className="text-2xl">{icon}</span>{label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Prises */}
+      {plugs.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-1 mb-3">💡 Prises & Lumières</p>
+          <div className="grid grid-cols-2 gap-3">
+            {plugs.map(plug => {
+              const isOn = states[plug.id]?.on ?? false;
+              return (
+                <div key={plug.id} onClick={() => togglePlug(plug)}
+                  className={`rounded-2xl p-4 shadow-sm border cursor-pointer transition-all select-none ${isOn ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <span className="text-3xl">{plug.icon||'💡'}</span>
+                    <div className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${isOn ? 'bg-amber-400' : 'bg-slate-200'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${isOn ? 'right-1' : 'left-1'}`} />
+                    </div>
+                  </div>
+                  <div className="font-medium text-slate-700 text-sm truncate">{plug.name}</div>
+                  <div className={`text-xs mt-0.5 font-medium ${isOn ? 'text-amber-600' : 'text-slate-400'}`}>
+                    {loading[plug.id] ? '…' : isOn ? '● Allumé' : '○ Éteint'}
+                  </div>
+                </div>
+              );
+            })}
+            <button onClick={openCfg}
+              className="rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-1 text-slate-300 hover:border-indigo-300 hover:text-indigo-400 transition-all min-h-28">
+              <span className="text-3xl">+</span><span className="text-xs">Ajouter</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hasTuya && !vacuum.enabled && !plugs.length && (
+        <div className="text-center py-12 text-slate-400">
+          <div className="text-5xl mb-3">🏠</div>
+          <p className="font-medium text-slate-600 mb-1">Aucun appareil</p>
+          <p className="text-sm mb-4">Activez l'aspirateur ou ajoutez des prises</p>
+          <button onClick={openCfg} className="text-indigo-500 hover:underline text-sm">+ Configurer les appareils</button>
+        </div>
+      )}
+
+      <Modal open={showCfg} onClose={() => setShowCfg(false)} title="⚙️ Domotique — Configuration">
+        <DomotiqueConfig cfg={editCfg} setCfg={setEditCfg} onSave={saveCfg} />
+      </Modal>
+    </div>
+  );
+}
+
+// ── Finance ───────────────────────────────────────────────────────────────────
+const FNG_LABELS = {
+  'Extreme Fear': { label:'Peur extrême', color:'#ef4444', bg:'#fef2f2', ring:'#fca5a5' },
+  'Fear':         { label:'Peur',          color:'#f97316', bg:'#fff7ed', ring:'#fdba74' },
+  'Neutral':      { label:'Neutre',        color:'#eab308', bg:'#fefce8', ring:'#fde047' },
+  'Greed':        { label:'Avidité',       color:'#22c55e', bg:'#f0fdf4', ring:'#86efac' },
+  'Extreme Greed':{ label:'Avidité extrême',color:'#16a34a',bg:'#f0fdf4', ring:'#4ade80' },
+};
+
+function FinanceWidget({ setTab }) {
+  const [data, setData] = useState(null);
+  const [btcUsd, setBtcUsd] = useState(null);
+  const [change, setChange] = useState(null);
+
+  useEffect(() => {
+    fetch('https://api.alternative.me/fng/?limit=1')
+      .then(r => r.json())
+      .then(j => {
+        const d = j.data[0];
+        setData({ value: parseInt(d.value), classification: d.value_classification });
+      }).catch(() => {});
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true')
+      .then(r => r.json())
+      .then(j => {
+        setBtcUsd(j.bitcoin.usd);
+        setChange(j.bitcoin.usd_24h_change);
+      }).catch(() => {});
+  }, []);
+
+  const info = data ? (FNG_LABELS[data.classification] || FNG_LABELS['Neutral']) : null;
+  const fmtUsd = n => n?.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0});
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-slate-700">💰 Finance</h3>
+        <button onClick={() => setTab('finance')} className="text-xs text-indigo-500 hover:underline">Détails →</button>
+      </div>
+      <div className="flex items-center gap-4">
+        {/* F&G mini */}
+        {data ? (
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center border-4" style={{borderColor: info.color, background: info.bg}}>
+              <span className="text-lg font-bold" style={{color: info.color}}>{data.value}</span>
+            </div>
+            <span className="text-[10px] font-medium" style={{color: info.color}}>{info.label}</span>
+          </div>
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-slate-100 animate-pulse" />
+        )}
+        {/* BTC price */}
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-lg font-bold text-slate-800">₿</span>
+            <span className="text-xs text-slate-400">Bitcoin</span>
+          </div>
+          {btcUsd
+            ? <>
+                <div className="text-xl font-bold text-slate-800">{fmtUsd(btcUsd)}</div>
+                <div className={`text-xs font-semibold mt-0.5 ${change >= 0 ? 'text-green-600' : 'text-rose-500'}`}>
+                  {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(2)}% aujourd'hui
+                </div>
+              </>
+            : <div className="h-8 bg-slate-100 rounded animate-pulse mt-1" />
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FearGreedGauge({ value, classification }) {
+  // Arc SVG : demi-cercle de -180° à 0°
+  const cx = 110, cy = 110, r = 85;
+  const toRad = deg => (deg * Math.PI) / 180;
+  const pct = Math.min(Math.max(value / 100, 0), 1);
+  // needle angle : -180° (0) → 0° (100)
+  const needleAngle = -180 + pct * 180;
+  const needleRad = toRad(needleAngle);
+  const nx = cx + (r - 20) * Math.cos(needleRad);
+  const ny = cy + (r - 20) * Math.sin(needleRad);
+
+  // gradient zones (5 segments)
+  const segments = [
+    { from:-180, to:-144, color:'#ef4444' },
+    { from:-144, to:-108, color:'#f97316' },
+    { from:-108, to: -72, color:'#eab308' },
+    { from: -72, to: -36, color:'#22c55e' },
+    { from: -36, to:   0, color:'#16a34a' },
+  ];
+  function arcPath(fromDeg, toDeg, radius) {
+    const f = toRad(fromDeg), t = toRad(toDeg);
+    const x1 = cx + radius * Math.cos(f), y1 = cy + radius * Math.sin(f);
+    const x2 = cx + radius * Math.cos(t), y2 = cy + radius * Math.sin(t);
+    return `M ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2}`;
+  }
+
+  const info = FNG_LABELS[classification] || FNG_LABELS['Neutral'];
+  return (
+    <div className="flex flex-col items-center">
+      <svg width="220" height="120" viewBox="0 0 220 120">
+        {/* Track */}
+        {segments.map((s,i) => (
+          <path key={i} d={arcPath(s.from, s.to, r)} fill="none" stroke={s.color} strokeWidth="18" strokeLinecap="butt" opacity="0.25"/>
+        ))}
+        {/* Active arc */}
+        {segments.map((s,i) => {
+          const startAngle = -180;
+          const endAngle = -180 + pct * 180;
+          // clip each segment
+          const segFrom = Math.max(s.from, startAngle);
+          const segTo   = Math.min(s.to,   endAngle);
+          if (segTo <= segFrom) return null;
+          return <path key={`a${i}`} d={arcPath(segFrom, segTo, r)} fill="none" stroke={s.color} strokeWidth="18" strokeLinecap="butt"/>;
+        })}
+        {/* Needle */}
+        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#1e293b" strokeWidth="3" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r="6" fill="#1e293b" />
+        {/* Center value */}
+        <text x={cx} y={cy - 14} textAnchor="middle" fontSize="22" fontWeight="700" fill={info.color}>{value}</text>
+        {/* Labels */}
+        <text x="18"  y="116" fontSize="9" fill="#ef4444" textAnchor="middle">😱</text>
+        <text x="202" y="116" fontSize="9" fill="#16a34a" textAnchor="middle">🤑</text>
+      </svg>
+      <div className="text-center mt-1">
+        <span className="text-sm font-bold" style={{color: info.color}}>{info.label}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Tableau Amortissement ─────────────────────────────────────────────────────
+const MORTGAGE_DATA = [{"n":68,"year":2026,"month":1,"interets":224.97,"assur":103.48,"capAmorti":1076.92,"echeance":1405.37,"capRestant":178903.06},{"n":69,"year":2026,"month":2,"interets":223.63,"assur":102.86,"capAmorti":1078.88,"echeance":1405.37,"capRestant":177824.18},{"n":70,"year":2026,"month":3,"interets":222.28,"assur":102.24,"capAmorti":1080.85,"echeance":1405.37,"capRestant":176743.33},{"n":71,"year":2026,"month":4,"interets":220.93,"assur":101.62,"capAmorti":1082.82,"echeance":1405.37,"capRestant":175660.51},{"n":72,"year":2026,"month":5,"interets":219.58,"assur":101.0,"capAmorti":1084.79,"echeance":1405.37,"capRestant":174575.72},{"n":73,"year":2026,"month":6,"interets":218.22,"assur":100.38,"capAmorti":1086.77,"echeance":1405.37,"capRestant":173488.95},{"n":74,"year":2026,"month":7,"interets":216.86,"assur":99.76,"capAmorti":1088.75,"echeance":1405.37,"capRestant":172400.2},{"n":75,"year":2026,"month":8,"interets":215.5,"assur":99.14,"capAmorti":1090.73,"echeance":1405.37,"capRestant":171309.47},{"n":76,"year":2026,"month":9,"interets":214.14,"assur":98.5,"capAmorti":1092.73,"echeance":1405.37,"capRestant":170216.74},{"n":77,"year":2026,"month":10,"interets":212.77,"assur":97.88,"capAmorti":1094.72,"echeance":1405.37,"capRestant":169122.02},{"n":78,"year":2026,"month":11,"interets":211.4,"assur":97.24,"capAmorti":1096.73,"echeance":1405.37,"capRestant":168025.29},{"n":79,"year":2026,"month":12,"interets":210.03,"assur":96.62,"capAmorti":1098.72,"echeance":1405.37,"capRestant":166926.57},{"n":80,"year":2027,"month":1,"interets":208.66,"assur":95.98,"capAmorti":1100.73,"echeance":1405.37,"capRestant":165825.84},{"n":81,"year":2027,"month":2,"interets":207.28,"assur":95.34,"capAmorti":1102.75,"echeance":1405.37,"capRestant":164723.09},{"n":82,"year":2027,"month":3,"interets":205.9,"assur":94.72,"capAmorti":1104.75,"echeance":1405.37,"capRestant":163618.34},{"n":83,"year":2027,"month":4,"interets":204.52,"assur":94.08,"capAmorti":1106.77,"echeance":1405.37,"capRestant":162511.57},{"n":84,"year":2027,"month":5,"interets":203.14,"assur":93.44,"capAmorti":1108.79,"echeance":1405.37,"capRestant":161402.78},{"n":85,"year":2027,"month":6,"interets":201.75,"assur":92.8,"capAmorti":1110.82,"echeance":1405.37,"capRestant":160291.96},{"n":86,"year":2027,"month":7,"interets":200.36,"assur":92.16,"capAmorti":1112.85,"echeance":1405.37,"capRestant":159179.11},{"n":87,"year":2027,"month":8,"interets":198.97,"assur":91.52,"capAmorti":1114.88,"echeance":1405.37,"capRestant":158064.23},{"n":88,"year":2027,"month":9,"interets":197.58,"assur":90.88,"capAmorti":1116.91,"echeance":1405.37,"capRestant":156947.32},{"n":89,"year":2027,"month":10,"interets":196.18,"assur":90.24,"capAmorti":1118.95,"echeance":1405.37,"capRestant":155828.37},{"n":90,"year":2027,"month":11,"interets":194.79,"assur":89.6,"capAmorti":1120.98,"echeance":1405.37,"capRestant":154707.39},{"n":91,"year":2027,"month":12,"interets":193.38,"assur":88.96,"capAmorti":1123.03,"echeance":1405.37,"capRestant":153584.36},{"n":92,"year":2028,"month":1,"interets":191.98,"assur":88.32,"capAmorti":1125.07,"echeance":1405.37,"capRestant":152459.29},{"n":93,"year":2028,"month":2,"interets":190.57,"assur":87.66,"capAmorti":1127.14,"echeance":1405.37,"capRestant":151332.15},{"n":94,"year":2028,"month":3,"interets":189.17,"assur":87.02,"capAmorti":1129.18,"echeance":1405.37,"capRestant":150202.97},{"n":95,"year":2028,"month":4,"interets":187.75,"assur":86.36,"capAmorti":1131.26,"echeance":1405.37,"capRestant":149071.71},{"n":96,"year":2028,"month":5,"interets":186.34,"assur":85.72,"capAmorti":1133.31,"echeance":1405.37,"capRestant":147938.4},{"n":97,"year":2028,"month":6,"interets":184.92,"assur":85.06,"capAmorti":1135.39,"echeance":1405.37,"capRestant":146803.01},{"n":98,"year":2028,"month":7,"interets":183.5,"assur":84.42,"capAmorti":1137.45,"echeance":1405.37,"capRestant":145665.56},{"n":99,"year":2028,"month":8,"interets":182.08,"assur":83.76,"capAmorti":1139.53,"echeance":1405.37,"capRestant":144526.03},{"n":100,"year":2028,"month":9,"interets":180.66,"assur":83.1,"capAmorti":1141.61,"echeance":1405.37,"capRestant":143384.42},{"n":101,"year":2028,"month":10,"interets":179.23,"assur":82.44,"capAmorti":1143.7,"echeance":1405.37,"capRestant":142240.72},{"n":102,"year":2028,"month":11,"interets":177.8,"assur":81.78,"capAmorti":1145.79,"echeance":1405.37,"capRestant":141094.93},{"n":103,"year":2028,"month":12,"interets":176.37,"assur":81.12,"capAmorti":1147.88,"echeance":1405.37,"capRestant":139947.05},{"n":104,"year":2029,"month":1,"interets":174.93,"assur":80.46,"capAmorti":1149.98,"echeance":1405.37,"capRestant":138797.07},{"n":105,"year":2029,"month":2,"interets":173.5,"assur":79.8,"capAmorti":1152.07,"echeance":1405.37,"capRestant":137645.0},{"n":106,"year":2029,"month":3,"interets":172.06,"assur":79.14,"capAmorti":1154.17,"echeance":1405.37,"capRestant":136490.83},{"n":107,"year":2029,"month":4,"interets":170.61,"assur":78.48,"capAmorti":1156.28,"echeance":1405.37,"capRestant":135334.55},{"n":108,"year":2029,"month":5,"interets":169.17,"assur":77.82,"capAmorti":1158.38,"echeance":1405.37,"capRestant":134176.17},{"n":109,"year":2029,"month":6,"interets":167.72,"assur":77.16,"capAmorti":1160.49,"echeance":1405.37,"capRestant":133015.68},{"n":110,"year":2029,"month":7,"interets":166.27,"assur":76.48,"capAmorti":1162.62,"echeance":1405.37,"capRestant":131853.06},{"n":111,"year":2029,"month":8,"interets":164.82,"assur":75.82,"capAmorti":1164.73,"echeance":1405.37,"capRestant":130688.33},{"n":112,"year":2029,"month":9,"interets":163.36,"assur":75.14,"capAmorti":1166.87,"echeance":1405.37,"capRestant":129521.46},{"n":113,"year":2029,"month":10,"interets":161.9,"assur":74.48,"capAmorti":1168.99,"echeance":1405.37,"capRestant":128352.47},{"n":114,"year":2029,"month":11,"interets":160.44,"assur":73.8,"capAmorti":1171.13,"echeance":1405.37,"capRestant":127181.34},{"n":115,"year":2029,"month":12,"interets":158.98,"assur":73.12,"capAmorti":1173.27,"echeance":1405.37,"capRestant":126008.07},{"n":116,"year":2030,"month":1,"interets":157.51,"assur":72.46,"capAmorti":1175.4,"echeance":1405.37,"capRestant":124832.67},{"n":117,"year":2030,"month":2,"interets":156.04,"assur":71.78,"capAmorti":1177.55,"echeance":1405.37,"capRestant":123655.12},{"n":118,"year":2030,"month":3,"interets":154.57,"assur":71.1,"capAmorti":1179.7,"echeance":1405.37,"capRestant":122475.42},{"n":119,"year":2030,"month":4,"interets":153.09,"assur":70.42,"capAmorti":1181.86,"echeance":1405.37,"capRestant":121293.56},{"n":120,"year":2030,"month":5,"interets":151.62,"assur":69.74,"capAmorti":1184.01,"echeance":1405.37,"capRestant":120109.55},{"n":121,"year":2030,"month":6,"interets":150.14,"assur":69.06,"capAmorti":1186.17,"echeance":1405.37,"capRestant":118923.38},{"n":122,"year":2030,"month":7,"interets":148.65,"assur":68.38,"capAmorti":1188.34,"echeance":1405.37,"capRestant":117735.04},{"n":123,"year":2030,"month":8,"interets":147.17,"assur":67.7,"capAmorti":1190.5,"echeance":1405.37,"capRestant":116544.54},{"n":124,"year":2030,"month":9,"interets":145.68,"assur":67.02,"capAmorti":1192.67,"echeance":1405.37,"capRestant":115351.87},{"n":125,"year":2030,"month":10,"interets":144.19,"assur":66.32,"capAmorti":1194.86,"echeance":1405.37,"capRestant":114157.01},{"n":126,"year":2030,"month":11,"interets":142.7,"assur":65.64,"capAmorti":1197.03,"echeance":1405.37,"capRestant":112959.98},{"n":127,"year":2030,"month":12,"interets":141.2,"assur":64.96,"capAmorti":1199.21,"echeance":1405.37,"capRestant":111760.77},{"n":128,"year":2031,"month":1,"interets":139.7,"assur":64.26,"capAmorti":1201.41,"echeance":1405.37,"capRestant":110559.36},{"n":129,"year":2031,"month":2,"interets":138.2,"assur":63.58,"capAmorti":1203.59,"echeance":1405.37,"capRestant":109355.77},{"n":130,"year":2031,"month":3,"interets":136.69,"assur":62.88,"capAmorti":1205.8,"echeance":1405.37,"capRestant":108149.97},{"n":131,"year":2031,"month":4,"interets":135.19,"assur":62.18,"capAmorti":1208.0,"echeance":1405.37,"capRestant":106941.97},{"n":132,"year":2031,"month":5,"interets":133.68,"assur":61.5,"capAmorti":1210.19,"echeance":1405.37,"capRestant":105731.78},{"n":133,"year":2031,"month":6,"interets":132.16,"assur":60.8,"capAmorti":1212.41,"echeance":1405.37,"capRestant":104519.37},{"n":134,"year":2031,"month":7,"interets":130.65,"assur":60.1,"capAmorti":1214.62,"echeance":1405.37,"capRestant":103304.75},{"n":135,"year":2031,"month":8,"interets":129.13,"assur":59.4,"capAmorti":1216.84,"echeance":1405.37,"capRestant":102087.91},{"n":136,"year":2031,"month":9,"interets":127.61,"assur":58.7,"capAmorti":1219.06,"echeance":1405.37,"capRestant":100868.85},{"n":137,"year":2031,"month":10,"interets":126.09,"assur":58.0,"capAmorti":1221.28,"echeance":1405.37,"capRestant":99647.57},{"n":138,"year":2031,"month":11,"interets":124.56,"assur":57.3,"capAmorti":1223.51,"echeance":1405.37,"capRestant":98424.06},{"n":139,"year":2031,"month":12,"interets":123.03,"assur":56.6,"capAmorti":1225.74,"echeance":1405.37,"capRestant":97198.32},{"n":140,"year":2032,"month":1,"interets":121.5,"assur":55.88,"capAmorti":1227.99,"echeance":1405.37,"capRestant":95970.33},{"n":141,"year":2032,"month":2,"interets":119.96,"assur":55.18,"capAmorti":1230.23,"echeance":1405.37,"capRestant":94740.1},{"n":142,"year":2032,"month":3,"interets":118.43,"assur":54.48,"capAmorti":1232.46,"echeance":1405.37,"capRestant":93507.64},{"n":143,"year":2032,"month":4,"interets":116.88,"assur":53.76,"capAmorti":1234.73,"echeance":1405.37,"capRestant":92272.91},{"n":144,"year":2032,"month":5,"interets":115.34,"assur":53.06,"capAmorti":1236.97,"echeance":1405.37,"capRestant":91035.94},{"n":145,"year":2032,"month":6,"interets":113.79,"assur":52.34,"capAmorti":1239.24,"echeance":1405.37,"capRestant":89796.7},{"n":146,"year":2032,"month":7,"interets":112.25,"assur":51.64,"capAmorti":1241.48,"echeance":1405.37,"capRestant":88555.22},{"n":147,"year":2032,"month":8,"interets":110.69,"assur":50.92,"capAmorti":1243.76,"echeance":1405.37,"capRestant":87311.46},{"n":148,"year":2032,"month":9,"interets":109.14,"assur":50.2,"capAmorti":1246.03,"echeance":1405.37,"capRestant":86065.43},{"n":149,"year":2032,"month":10,"interets":107.58,"assur":49.48,"capAmorti":1248.31,"echeance":1405.37,"capRestant":84817.12},{"n":150,"year":2032,"month":11,"interets":106.02,"assur":48.76,"capAmorti":1250.59,"echeance":1405.37,"capRestant":83566.53},{"n":151,"year":2032,"month":12,"interets":104.46,"assur":48.06,"capAmorti":1252.85,"echeance":1405.37,"capRestant":82313.68},{"n":152,"year":2033,"month":1,"interets":102.89,"assur":47.34,"capAmorti":1255.14,"echeance":1405.37,"capRestant":81058.54},{"n":153,"year":2033,"month":2,"interets":101.32,"assur":46.6,"capAmorti":1257.45,"echeance":1405.37,"capRestant":79801.09},{"n":154,"year":2033,"month":3,"interets":99.75,"assur":45.88,"capAmorti":1259.74,"echeance":1405.37,"capRestant":78541.35},{"n":155,"year":2033,"month":4,"interets":98.18,"assur":45.16,"capAmorti":1262.03,"echeance":1405.37,"capRestant":77279.32},{"n":156,"year":2033,"month":5,"interets":96.6,"assur":44.44,"capAmorti":1264.33,"echeance":1405.37,"capRestant":76014.99},{"n":157,"year":2033,"month":6,"interets":95.02,"assur":43.7,"capAmorti":1266.65,"echeance":1405.37,"capRestant":74748.34},{"n":158,"year":2033,"month":7,"interets":93.44,"assur":42.98,"capAmorti":1268.95,"echeance":1405.37,"capRestant":73479.39},{"n":159,"year":2033,"month":8,"interets":91.85,"assur":42.26,"capAmorti":1271.26,"echeance":1405.37,"capRestant":72208.13},{"n":160,"year":2033,"month":9,"interets":90.26,"assur":41.52,"capAmorti":1273.59,"echeance":1405.37,"capRestant":70934.54},{"n":161,"year":2033,"month":10,"interets":88.67,"assur":40.78,"capAmorti":1275.92,"echeance":1405.37,"capRestant":69658.62},{"n":162,"year":2033,"month":11,"interets":87.07,"assur":40.06,"capAmorti":1278.24,"echeance":1405.37,"capRestant":68380.38},{"n":163,"year":2033,"month":12,"interets":85.48,"assur":39.32,"capAmorti":1280.57,"echeance":1405.37,"capRestant":67099.81},{"n":164,"year":2034,"month":1,"interets":83.87,"assur":38.58,"capAmorti":1282.92,"echeance":1405.37,"capRestant":65816.89},{"n":165,"year":2034,"month":2,"interets":82.27,"assur":37.84,"capAmorti":1285.26,"echeance":1405.37,"capRestant":64531.63},{"n":166,"year":2034,"month":3,"interets":80.66,"assur":37.1,"capAmorti":1287.61,"echeance":1405.37,"capRestant":63244.02},{"n":167,"year":2034,"month":4,"interets":79.06,"assur":36.36,"capAmorti":1289.95,"echeance":1405.37,"capRestant":61954.07},{"n":168,"year":2034,"month":5,"interets":77.44,"assur":35.62,"capAmorti":1292.31,"echeance":1405.37,"capRestant":60661.76},{"n":169,"year":2034,"month":6,"interets":75.83,"assur":34.88,"capAmorti":1294.66,"echeance":1405.37,"capRestant":59367.1},{"n":170,"year":2034,"month":7,"interets":74.21,"assur":34.14,"capAmorti":1297.02,"echeance":1405.37,"capRestant":58070.08},{"n":171,"year":2034,"month":8,"interets":72.59,"assur":33.4,"capAmorti":1299.38,"echeance":1405.37,"capRestant":56770.7},{"n":172,"year":2034,"month":9,"interets":70.96,"assur":32.64,"capAmorti":1301.77,"echeance":1405.37,"capRestant":55468.93},{"n":173,"year":2034,"month":10,"interets":69.34,"assur":31.9,"capAmorti":1304.13,"echeance":1405.37,"capRestant":54164.8},{"n":174,"year":2034,"month":11,"interets":67.71,"assur":31.14,"capAmorti":1306.52,"echeance":1405.37,"capRestant":52858.28},{"n":175,"year":2034,"month":12,"interets":66.07,"assur":30.4,"capAmorti":1308.9,"echeance":1405.37,"capRestant":51549.38},{"n":176,"year":2035,"month":1,"interets":64.44,"assur":29.64,"capAmorti":1311.29,"echeance":1405.37,"capRestant":50238.09},{"n":177,"year":2035,"month":2,"interets":62.8,"assur":28.88,"capAmorti":1313.69,"echeance":1405.37,"capRestant":48924.4},{"n":178,"year":2035,"month":3,"interets":61.16,"assur":28.14,"capAmorti":1316.07,"echeance":1405.37,"capRestant":47608.33},{"n":179,"year":2035,"month":4,"interets":59.51,"assur":27.38,"capAmorti":1318.48,"echeance":1405.37,"capRestant":46289.85},{"n":180,"year":2035,"month":5,"interets":57.86,"assur":26.62,"capAmorti":1320.89,"echeance":1405.37,"capRestant":44968.96},{"n":181,"year":2035,"month":6,"interets":56.21,"assur":25.86,"capAmorti":1323.3,"echeance":1405.37,"capRestant":43645.66},{"n":182,"year":2035,"month":7,"interets":54.56,"assur":25.1,"capAmorti":1325.71,"echeance":1405.37,"capRestant":42319.95},{"n":183,"year":2035,"month":8,"interets":52.9,"assur":24.34,"capAmorti":1328.13,"echeance":1405.37,"capRestant":40991.82},{"n":184,"year":2035,"month":9,"interets":51.24,"assur":23.58,"capAmorti":1330.55,"echeance":1405.37,"capRestant":39661.27},{"n":185,"year":2035,"month":10,"interets":49.58,"assur":22.8,"capAmorti":1332.99,"echeance":1405.37,"capRestant":38328.28},{"n":186,"year":2035,"month":11,"interets":47.91,"assur":22.04,"capAmorti":1335.42,"echeance":1405.37,"capRestant":36992.86},{"n":187,"year":2035,"month":12,"interets":46.24,"assur":21.28,"capAmorti":1337.85,"echeance":1405.37,"capRestant":35655.01},{"n":188,"year":2036,"month":1,"interets":44.57,"assur":20.5,"capAmorti":1340.3,"echeance":1405.37,"capRestant":34314.71},{"n":189,"year":2036,"month":2,"interets":42.89,"assur":19.74,"capAmorti":1342.74,"echeance":1405.37,"capRestant":32971.97},{"n":190,"year":2036,"month":3,"interets":41.21,"assur":18.96,"capAmorti":1345.2,"echeance":1405.37,"capRestant":31626.77},{"n":191,"year":2036,"month":4,"interets":39.53,"assur":18.18,"capAmorti":1347.66,"echeance":1405.37,"capRestant":30279.11},{"n":192,"year":2036,"month":5,"interets":37.85,"assur":17.42,"capAmorti":1350.1,"echeance":1405.37,"capRestant":28929.01},{"n":193,"year":2036,"month":6,"interets":36.16,"assur":16.64,"capAmorti":1352.57,"echeance":1405.37,"capRestant":27576.44},{"n":194,"year":2036,"month":7,"interets":34.47,"assur":15.86,"capAmorti":1355.04,"echeance":1405.37,"capRestant":26221.4},{"n":195,"year":2036,"month":8,"interets":32.78,"assur":15.08,"capAmorti":1357.51,"echeance":1405.37,"capRestant":24863.89},{"n":196,"year":2036,"month":9,"interets":31.08,"assur":14.3,"capAmorti":1359.99,"echeance":1405.37,"capRestant":23503.9},{"n":197,"year":2036,"month":10,"interets":29.38,"assur":13.52,"capAmorti":1362.47,"echeance":1405.37,"capRestant":22141.43},{"n":198,"year":2036,"month":11,"interets":27.68,"assur":12.74,"capAmorti":1364.95,"echeance":1405.37,"capRestant":20776.48},{"n":199,"year":2036,"month":12,"interets":25.97,"assur":11.94,"capAmorti":1367.46,"echeance":1405.37,"capRestant":19409.02},{"n":200,"year":2037,"month":1,"interets":24.26,"assur":11.16,"capAmorti":1369.95,"echeance":1405.37,"capRestant":18039.07},{"n":201,"year":2037,"month":2,"interets":22.55,"assur":10.38,"capAmorti":1372.44,"echeance":1405.37,"capRestant":16666.63},{"n":202,"year":2037,"month":3,"interets":20.83,"assur":9.58,"capAmorti":1374.96,"echeance":1405.37,"capRestant":15291.67},{"n":203,"year":2037,"month":4,"interets":19.11,"assur":8.8,"capAmorti":1377.46,"echeance":1405.37,"capRestant":13914.21},{"n":204,"year":2037,"month":5,"interets":17.39,"assur":8.0,"capAmorti":1379.98,"echeance":1405.37,"capRestant":12534.23},{"n":205,"year":2037,"month":6,"interets":15.67,"assur":7.2,"capAmorti":1382.5,"echeance":1405.37,"capRestant":11151.73},{"n":206,"year":2037,"month":7,"interets":13.94,"assur":6.42,"capAmorti":1385.01,"echeance":1405.37,"capRestant":9766.72},{"n":207,"year":2037,"month":8,"interets":12.21,"assur":5.62,"capAmorti":1387.54,"echeance":1405.37,"capRestant":8379.18},{"n":208,"year":2037,"month":9,"interets":10.47,"assur":4.82,"capAmorti":1390.08,"echeance":1405.37,"capRestant":6989.1},{"n":209,"year":2037,"month":10,"interets":8.74,"assur":4.02,"capAmorti":1392.61,"echeance":1405.37,"capRestant":5596.49},{"n":210,"year":2037,"month":11,"interets":7.0,"assur":3.22,"capAmorti":1395.15,"echeance":1405.37,"capRestant":4201.34},{"n":211,"year":2037,"month":12,"interets":5.25,"assur":2.42,"capAmorti":1397.7,"echeance":1405.37,"capRestant":2803.64},{"n":212,"year":2038,"month":1,"interets":3.5,"assur":1.62,"capAmorti":1400.25,"echeance":1405.37,"capRestant":1403.39},{"n":213,"year":2038,"month":2,"interets":1.75,"assur":0.8,"capAmorti":1403.39,"echeance":1405.94,"capRestant":0.0}];
+
+function MortgageSection() {
+  const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const [showTable, setShowTable] = useState(false);
+
+  const now = new Date();
+  const cyear = now.getFullYear();
+  const cmonth = now.getMonth() + 1;
+
+  const currentIdx = MORTGAGE_DATA.findIndex(r => r.year === cyear && r.month === cmonth);
+  const idx = currentIdx >= 0 ? currentIdx : 0;
+  const current = MORTGAGE_DATA[idx];
+  const totalN = MORTGAGE_DATA[MORTGAGE_DATA.length - 1].n; // 213 échéances au total
+  const progressPct = Math.round((current.n / totalN) * 100);
+
+  const remaining = MORTGAGE_DATA.slice(idx);
+  const totalInterets = remaining.reduce((s, r) => s + r.interets, 0);
+  const totalAssur   = remaining.reduce((s, r) => s + r.assur,    0);
+  const nextRows = MORTGAGE_DATA.slice(idx + 1, idx + 13);
+
+  // SVG chart constants
+  const W = 440, H = 110, PL = 44, PR = 8, PT = 10, PB = 22;
+  const cW = W - PL - PR, cH = H - PT - PB;
+  const dataLen = MORTGAGE_DATA.length;
+  const maxCap = MORTGAGE_DATA[0].capAmorti + MORTGAGE_DATA[0].capRestant; // ~179 980
+  const toX = i => PL + (i / (dataLen - 1)) * cW;
+  const toY = v => PT + cH - (v / maxCap) * cH;
+
+  // Build line path (every 3rd point + last)
+  let linePath = '';
+  MORTGAGE_DATA.forEach((r, i) => {
+    if (i % 3 !== 0 && i !== dataLen - 1) return;
+    const x = toX(i).toFixed(1), y = toY(r.capRestant).toFixed(1);
+    linePath += linePath === '' ? `M${x},${y}` : ` L${x},${y}`;
+  });
+  const areaPath = linePath + ` L${toX(dataLen-1).toFixed(1)},${(PT+cH).toFixed(1)} L${PL},${(PT+cH).toFixed(1)} Z`;
+  const curX = toX(idx), curY = toY(current.capRestant);
+  const yLabels = [0, 50000, 100000, 150000];
+
+  const fmtE = v => v != null ? v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €' : '–';
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+      <h3 className="font-semibold text-slate-700">🏠 Prêt Immobilier</h3>
+
+      {/* Hero card */}
+      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-4 space-y-3">
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Capital restant dû</p>
+            <p className="text-3xl font-bold text-indigo-700">{fmtE(current.capRestant)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-500 mb-1">Mensualité</p>
+            <p className="text-xl font-bold text-slate-700">{fmtE(current.echeance)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Échéance n°{current.n}</p>
+          </div>
+        </div>
+        <div>
+          <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+            <span>{progressPct}% du prêt remboursé</span>
+            <span>Fin : fév. 2038</span>
+          </div>
+          <div className="w-full bg-white/70 rounded-full h-2.5">
+            <div className="bg-indigo-500 h-2.5 rounded-full transition-all" style={{width:`${progressPct}%`}} />
+          </div>
+        </div>
+      </div>
+
+      {/* Ce mois-ci */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-rose-50 rounded-xl p-3 text-center border border-rose-100">
+          <p className="text-[11px] text-rose-400 font-medium mb-1">💸 Intérêts</p>
+          <p className="text-sm font-bold text-rose-600">{current.interets.toFixed(2)} €</p>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+          <p className="text-[11px] text-amber-500 font-medium mb-1">🛡️ Assurance</p>
+          <p className="text-sm font-bold text-amber-600">{current.assur.toFixed(2)} €</p>
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
+          <p className="text-[11px] text-emerald-500 font-medium mb-1">🏗️ Capital</p>
+          <p className="text-sm font-bold text-emerald-600">{current.capAmorti.toFixed(2)} €</p>
+        </div>
+      </div>
+
+      {/* SVG chart */}
+      <div>
+        <p className="text-xs font-medium text-slate-500 mb-2">Évolution du capital restant dû</p>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{height:'120px'}}>
+          {yLabels.map(v => (
+            <g key={v}>
+              <line x1={PL} y1={toY(v)} x2={W-PR} y2={toY(v)} stroke="#e2e8f0" strokeWidth="0.5"/>
+              <text x={PL-4} y={toY(v)+3} textAnchor="end" fontSize="7" fill="#94a3b8">
+                {v === 0 ? '0' : `${v/1000}k`}
+              </text>
+            </g>
+          ))}
+          <path d={areaPath} fill="#eef2ff" opacity="0.65"/>
+          <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <line x1={curX} y1={PT} x2={curX} y2={PT+cH} stroke="#6366f1" strokeWidth="1" strokeDasharray="3,2" opacity="0.55"/>
+          <circle cx={curX} cy={curY} r="3.5" fill="#6366f1"/>
+          <text x={curX > W/2 ? curX-5 : curX+5} y={curY-5}
+            textAnchor={curX > W/2 ? 'end' : 'start'} fontSize="7" fill="#4f46e5" fontWeight="bold">
+            Aujourd'hui
+          </text>
+          <line x1={PL} y1={PT+cH} x2={W-PR} y2={PT+cH} stroke="#cbd5e1" strokeWidth="0.5"/>
+          {MORTGAGE_DATA.filter((_, i) => i % 12 === 0).map((r, li) => (
+            <text key={li} x={toX(li * 12)} y={H - 4} textAnchor="middle" fontSize="7" fill="#94a3b8">{r.year}</text>
+          ))}
+        </svg>
+      </div>
+
+      {/* Totaux restants */}
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <p className="text-slate-400 mb-0.5">Intérêts restants</p>
+          <p className="font-semibold text-slate-700">{fmtE(totalInterets)}</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <p className="text-slate-400 mb-0.5">Assurances restantes</p>
+          <p className="font-semibold text-slate-700">{fmtE(totalAssur)}</p>
+        </div>
+      </div>
+
+      {/* Toggle table */}
+      <button onClick={() => setShowTable(v => !v)}
+        className="w-full text-xs text-indigo-500 hover:text-indigo-700 flex items-center justify-center gap-1.5 py-1 transition-colors">
+        {showTable ? '▲ Masquer le tableau' : '▼ Voir les prochaines échéances'}
+      </button>
+
+      {showTable && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="text-slate-400 border-b border-slate-100">
+                <th className="text-left pb-2 font-medium">Date</th>
+                <th className="text-right pb-2 font-medium">Mensualité</th>
+                <th className="text-right pb-2 font-medium">Intérêts</th>
+                <th className="text-right pb-2 font-medium">Assur.</th>
+                <th className="text-right pb-2 font-medium">Capital</th>
+                <th className="text-right pb-2 font-medium">Restant dû</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nextRows.map(r => (
+                <tr key={r.n} className="border-t border-slate-50 hover:bg-slate-50">
+                  <td className="py-1.5 text-slate-600">{MONTHS_FR[r.month-1]} {r.year}</td>
+                  <td className="py-1.5 text-right font-medium text-slate-700">{r.echeance.toFixed(2)} €</td>
+                  <td className="py-1.5 text-right text-rose-500">{r.interets.toFixed(2)} €</td>
+                  <td className="py-1.5 text-right text-amber-500">{r.assur.toFixed(2)} €</td>
+                  <td className="py-1.5 text-right text-emerald-500">{r.capAmorti.toFixed(2)} €</td>
+                  <td className="py-1.5 text-right text-slate-500">{r.capRestant.toFixed(2)} €</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[10px] text-slate-400 mt-2 text-center">12 prochaines échéances · Source : Tableau amortissement</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Finance() {
+  const [fng, setFng] = useState(null);           // {value, classification, history:[]}
+  const [btc, setBtc] = useState(null);            // {eur, usd, change24h}
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fear & Greed (7 derniers jours)
+      const fngRes = await fetch('https://api.alternative.me/fng/?limit=7');
+      const fngJson = await fngRes.json();
+      const latest = fngJson.data[0];
+      const history = fngJson.data.slice(0, 7).reverse(); // du plus ancien au plus récent
+      setFng({
+        value: parseInt(latest.value),
+        classification: latest.value_classification,
+        history: history.map(d => ({
+          value: parseInt(d.value),
+          classification: d.value_classification,
+          date: new Date(parseInt(d.timestamp) * 1000),
+        })),
+      });
+      // BTC price via CoinGecko (no key needed)
+      const btcRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur,usd&include_24hr_change=true');
+      const btcJson = await btcRes.json();
+      setBtc({
+        eur: btcJson.bitcoin.eur,
+        usd: btcJson.bitcoin.usd,
+        change24h: btcJson.bitcoin.usd_24h_change,
+      });
+      setLastUpdate(new Date());
+    } catch(e) {
+      setError('Impossible de charger les données. Vérifiez votre connexion.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  const fmtEur = n => n?.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0});
+  const fmtUsd = n => n?.toLocaleString('en-US',  {style:'currency', currency:'USD', maximumFractionDigits:0});
+
+  return (
+    <div className="fade-in space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-800">💰 Finance</h2>
+        <button onClick={loadData} disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-indigo-500 hover:underline disabled:opacity-40">
+          {loading ? '⏳' : '🔄'} Actualiser
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-600">{error}</div>
+      )}
+
+      {/* Fear & Greed Index */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-slate-700">😱🤑 Fear & Greed Index</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Sentiment du marché Bitcoin</p>
+          </div>
+          {lastUpdate && <span className="text-xs text-slate-400">{lastUpdate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}
+        </div>
+
+        {loading && !fng
+          ? <div className="h-36 flex items-center justify-center text-slate-400 text-sm">Chargement…</div>
+          : fng && (
+            <>
+              <FearGreedGauge value={fng.value} classification={fng.classification} />
+
+              {/* Historique 7j */}
+              <div className="mt-5">
+                <p className="text-xs font-medium text-slate-500 mb-3">Historique 7 jours</p>
+                <div className="flex items-end gap-1.5 h-16">
+                  {fng.history.map((d, i) => {
+                    const info = FNG_LABELS[d.classification] || FNG_LABELS['Neutral'];
+                    const h = Math.max(8, Math.round((d.value / 100) * 56));
+                    const isLast = i === fng.history.length - 1;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${d.date.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} — ${d.value} (${info.label})`}>
+                        <span className="text-xs font-bold" style={{color: info.color}}>{d.value}</span>
+                        <div className="w-full rounded-t-lg transition-all" style={{height:`${h}px`, backgroundColor: info.color, opacity: isLast ? 1 : 0.55}} />
+                        <span className="text-[10px] text-slate-400">{d.date.toLocaleDateString('fr-FR',{day:'numeric',month:'short'}).replace(' ','/')}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Légende */}
+              <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                {Object.entries(FNG_LABELS).map(([k,v]) => (
+                  <span key={k} className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{background:v.bg, color:v.color}}>{v.label}</span>
+                ))}
+              </div>
+            </>
+          )
+        }
+      </div>
+
+      {/* Prix BTC */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-slate-700">₿ Bitcoin</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Prix en temps réel</p>
+          </div>
+          <span className="text-2xl">₿</span>
+        </div>
+        {loading && !btc
+          ? <div className="h-12 flex items-center justify-center text-slate-400 text-sm">Chargement…</div>
+          : btc && (
+            <div className="space-y-3">
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-3xl font-bold text-slate-800">{fmtUsd(btc.usd)}</div>
+                  <div className="text-sm text-slate-400 mt-0.5">{fmtEur(btc.eur)}</div>
+                </div>
+                <div className={`flex items-center gap-1 text-sm font-semibold px-3 py-1.5 rounded-xl ${btc.change24h >= 0 ? 'bg-green-50 text-green-600' : 'bg-rose-50 text-rose-600'}`}>
+                  <span>{btc.change24h >= 0 ? '▲' : '▼'}</span>
+                  <span>{Math.abs(btc.change24h).toFixed(2)}%</span>
+                  <span className="font-normal text-xs opacity-70">24h</span>
+                </div>
+              </div>
+              <div className="text-xs text-slate-400 text-right">Source : CoinGecko · Alternative.me</div>
+            </div>
+          )
+        }
+      </div>
+
+      {/* Info */}
+      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-xs text-indigo-600 leading-relaxed">
+        <strong>À propos du Fear &amp; Greed Index :</strong> un indice de 0 à 100 qui mesure le sentiment du marché crypto. En dessous de 25 = peur extrême (souvent une opportunité d'achat). Au-dessus de 75 = avidité extrême (attention aux corrections).
+      </div>
+
+      {/* Prêt immobilier */}
+      <MortgageSection />
+    </div>
+  );
+}
+
+// ── Pokémon Collection ────────────────────────────────────────────────────────
+const POKE_SETS = [
+  { id:'base1', name:'Set de Base',  short:'SB',  year:'1999', total:102 },
+  { id:'base2', name:'Jungle',       short:'JU',  year:'1999', total:64  },
+  { id:'base3', name:'Fossile',      short:'FO',  year:'1999', total:62  },
+  { id:'base4', name:'Set de Base 2',short:'SB2', year:'2000', total:130 },
+  { id:'base5', name:'Team Rocket',  short:'TR',  year:'2000', total:83  },
+  { id:'gym1',  name:'Gym Heroes',   short:'GH',  year:'2000', total:132 },
+  { id:'gym2',  name:'Gym Challenge',short:'GC',  year:'2000', total:132 },
+  { id:'neo1',  name:'Néo Genesis',  short:'NG',  year:'2000', total:111 },
+  { id:'neo2',  name:'Néo Discovery',short:'ND',  year:'2001', total:75  },
+  { id:'neo3',  name:'Néo Revelation',short:'NR', year:'2001', total:66  },
+  { id:'neo4',  name:'Néo Destiny',  short:'NDe', year:'2002', total:113 },
+];
+
+const RARITY_CFG = {
+  'Rare Holo':  { label:'Holo Rare',  symbol:'✨', color:'#d97706', bg:'#fef3c7', order:1 },
+  'Rare':       { label:'Rare',       symbol:'⭐', color:'#6366f1', bg:'#eef2ff', order:2 },
+  'Uncommon':   { label:'Peu commun', symbol:'🔷', color:'#3b82f6', bg:'#eff6ff', order:3 },
+  'Common':     { label:'Commun',     symbol:'○',  color:'#64748b', bg:'#f8fafc', order:4 },
+};
+
+const TYPE_COLOR = {
+  Grass:'#5a9e3a', Fire:'#e84118', Water:'#0097e6', Lightning:'#e1b12c',
+  Psychic:'#e84393', Fighting:'#c0392b', Colorless:'#7f8c8d', Darkness:'#2c3e50',
+  Metal:'#636e72', Dragon:'#8e44ad', Fairy:'#fd79a8',
+};
+
+function PokemonCollection() {
+  const [owned,    setOwned]   = useSharedState('pokeOwned', {});   // partagé
+  const [cache,    setCache]   = useLocalStorage('pokeCache', {});  // cache API local uniquement
+  const [activeSet,setActiveSet] = useState('base1');
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [filter,   setFilter]   = useState('all');
+  const [zoom,     setZoom]     = useState(false); // agrandi / compact
+
+  const setInfo  = POKE_SETS.find(s => s.id === activeSet);
+  const cards    = cache[activeSet] || [];
+
+  useEffect(() => {
+    if (!cache[activeSet]) fetchCards(activeSet);
+  }, [activeSet]);
+
+  async function fetchCards(setId) {
+    setLoading(true); setError(null);
+    try {
+      const res  = await fetch(
+        `https://api.pokemontcg.io/v2/cards?q=set.id:${setId}&orderBy=number&pageSize=250`
+      );
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      setCache(prev => ({...prev, [setId]: json.data || []}));
+    } catch { setError('Impossible de charger les cartes. Vérifie ta connexion.'); }
+    finally  { setLoading(false); }
+  }
+
+  function toggleCard(id) {
+    setOwned(prev => ({...prev, [id]: !prev[id]}));
+  }
+
+  // ── Stats
+  const ownedCount = cards.filter(c => owned[c.id]).length;
+  const total      = cards.length || setInfo?.total || 0;
+  const pct        = total ? Math.round(ownedCount / total * 100) : 0;
+
+  const rarityStats = Object.entries(RARITY_CFG)
+    .sort((a,b) => a[1].order - b[1].order)
+    .map(([rarity, cfg]) => {
+      const group  = cards.filter(c => c.rarity === rarity);
+      const ownedG = group.filter(c => owned[c.id]);
+      return { rarity, cfg, total: group.length, owned: ownedG.length };
+    }).filter(r => r.total > 0);
+
+  // ── Filtrage
+  const RARITY_KEYS = ['Rare Holo','Rare','Uncommon','Common'];
+  const filtered = cards.filter(c => {
+    if (filter === 'owned')   return owned[c.id];
+    if (filter === 'missing') return !owned[c.id];
+    if (RARITY_KEYS.includes(filter)) return c.rarity === filter;
+    return true;
+  });
+
+  // ── Couleur de bord selon type
+  function typeColor(card) {
+    return card.types?.[0] ? (TYPE_COLOR[card.types[0]] || '#94a3b8') : '#94a3b8';
+  }
+
+  return (
+    <div className="fade-in space-y-4">
+
+      {/* Titre */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">🃏 Collection Pokémon</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Wizards of the Coast Block</p>
+        </div>
+        <button onClick={() => setZoom(z => !z)}
+          className="text-xs text-slate-400 hover:text-indigo-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:border-indigo-300 transition-colors">
+          {zoom ? '🔍 Compact' : '🔎 Agrandi'}
+        </button>
+      </div>
+
+      {/* Onglets sets */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+        {POKE_SETS.map(s => {
+          const sc = cache[s.id]?.filter(c => owned[c.id]).length || 0;
+          const isActive = activeSet === s.id;
+          return (
+            <button key={s.id}
+              onClick={() => { setActiveSet(s.id); setFilter('all'); }}
+              className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                isActive
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
+              }`}>
+              <span>{s.short}</span>
+              <span className={`font-normal mt-0.5 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>
+                {sc}/{s.total}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Barre de progression globale */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-semibold text-slate-700 text-sm">{setInfo?.name} · {setInfo?.year}</span>
+          <span className="text-sm font-bold text-indigo-600">
+            {ownedCount}<span className="text-slate-400 font-normal">/{total}</span>
+            <span className="ml-1.5 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">{pct}%</span>
+          </span>
+        </div>
+        {/* Barre globale */}
+        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden mb-3">
+          <div className="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-yellow-400 via-indigo-500 to-purple-600"
+            style={{width:`${pct}%`}} />
+        </div>
+        {/* Stats par rareté */}
+        {cards.length > 0 && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            {rarityStats.map(({rarity, cfg, total: t, owned: o}) => (
+              <div key={rarity} className="flex items-center gap-2">
+                <span className="text-sm w-5 text-center flex-shrink-0">{cfg.symbol}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between text-xs mb-0.5">
+                    <span className="text-slate-600 truncate">{cfg.label}</span>
+                    <span className="font-bold flex-shrink-0 ml-1" style={{color:cfg.color}}>{o}/{t}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{width:`${t ? Math.round(o/t*100) : 0}%`, background: cfg.color}} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Filtres */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+        {[
+          {f:'all',       label:'Toutes'},
+          {f:'owned',     label:'✅ Possédées'},
+          {f:'missing',   label:'❌ Manquantes'},
+          {f:'Rare Holo', label:'✨ Holo'},
+          {f:'Rare',      label:'⭐ Rare'},
+          {f:'Uncommon',  label:'🔷 Peu commun'},
+          {f:'Common',    label:'○ Commun'},
+        ].map(({f, label}) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors whitespace-nowrap ${
+              filter===f
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
+            }`}>
+            {label}
+            {f !== 'all' && cards.length > 0 && (() => {
+              const n = f==='owned' ? ownedCount
+                : f==='missing' ? total-ownedCount
+                : cards.filter(c=>c.rarity===f).length;
+              return <span className="ml-1 opacity-60">({n})</span>;
+            })()}
+          </button>
+        ))}
+      </div>
+
+      {/* Chargement */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+          <div className="text-5xl animate-bounce">🃏</div>
+          <p className="text-sm">Chargement des cartes…</p>
+        </div>
+      )}
+
+      {/* Erreur */}
+      {error && !loading && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-600 text-center space-y-2">
+          <p>{error}</p>
+          <button onClick={() => fetchCards(activeSet)}
+            className="text-xs underline text-rose-500 hover:text-rose-700">Réessayer</button>
+        </div>
+      )}
+
+      {/* Grille de cartes */}
+      {!loading && !error && filtered.length > 0 && (
+        <div className={`grid gap-2 ${zoom ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-4'}`}>
+          {filtered.map(card => {
+            const isOwned = !!owned[card.id];
+            const rarCfg  = RARITY_CFG[card.rarity] || {};
+            const tc      = typeColor(card);
+            return (
+              <button key={card.id} onClick={() => toggleCard(card.id)}
+                className="relative rounded-xl overflow-hidden text-left transition-all duration-200 active:scale-95"
+                style={{
+                  border: `2px solid ${isOwned ? tc : 'transparent'}`,
+                  boxShadow: isOwned ? `0 0 14px ${tc}44, 0 2px 8px rgba(0,0,0,.1)` : '0 1px 3px rgba(0,0,0,.08)',
+                  background: '#f8fafc',
+                  outline: isOwned ? `3px solid ${tc}22` : 'none',
+                  outlineOffset: '1px',
+                }}>
+
+                {/* Image carte */}
+                <div className="relative" style={{paddingBottom:'139%'}}>
+                  <img
+                    src={card.images?.small}
+                    alt={card.name}
+                    loading="lazy"
+                    draggable={false}
+                    className="absolute inset-0 w-full h-full object-cover select-none"
+                    style={{
+                      filter: isOwned ? 'none' : 'grayscale(100%) brightness(0.45)',
+                      transition: 'filter .2s',
+                    }}
+                  />
+                  {/* Badge possédé */}
+                  {isOwned && (
+                    <div style={{position:'absolute',top:5,right:5,background:'rgba(0,0,0,.55)',borderRadius:'50%',width:22,height:22,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,backdropFilter:'blur(4px)'}}>
+                      ✅
+                    </div>
+                  )}
+                  {/* Numéro */}
+                  <div style={{position:'absolute',bottom:5,left:5,background:'rgba(0,0,0,.6)',color:'#fff',fontSize:'9px',padding:'1px 5px',borderRadius:4,fontWeight:700,backdropFilter:'blur(2px)'}}>
+                    {card.number}/{total}
+                  </div>
+                  {/* Rareté holo — effet brillant */}
+                  {isOwned && card.rarity === 'Rare Holo' && (
+                    <div style={{position:'absolute',inset:0,background:'linear-gradient(135deg,rgba(255,215,0,.15) 0%,transparent 50%,rgba(255,100,200,.1) 100%)',pointerEvents:'none'}} />
+                  )}
+                </div>
+
+                {/* Nom + rareté */}
+                <div className="px-1.5 py-1.5" style={{background: isOwned ? `${tc}18` : '#f1f5f9'}}>
+                  <p className="text-xs font-semibold text-slate-800 truncate leading-tight">{card.name}</p>
+                  <p className="text-[10px] leading-tight mt-0.5" style={{color: rarCfg.color || '#94a3b8'}}>
+                    {rarCfg.symbol} {rarCfg.label || card.rarity}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Aucun résultat */}
+      {!loading && !error && filtered.length === 0 && cards.length > 0 && (
+        <div className="text-center py-10 text-slate-400 space-y-2">
+          <p className="text-3xl">🔍</p>
+          <p className="text-sm">Aucune carte pour ce filtre</p>
+          <button onClick={() => setFilter('all')} className="text-xs text-indigo-500 hover:underline">Voir toutes →</button>
+        </div>
+      )}
+
+      {/* Tableau récapitulatif */}
+      {!loading && cards.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="px-4 pt-4 pb-1">
+            <h3 className="font-semibold text-slate-700">📊 Récapitulatif — {setInfo?.name}</h3>
+          </div>
+          <table className="w-full text-sm mt-2">
+            <thead>
+              <tr className="bg-slate-50 border-y border-slate-100 text-xs text-slate-500 font-medium">
+                <th className="text-left px-4 py-2">Rareté</th>
+                <th className="text-center px-3 py-2">Possédées</th>
+                <th className="text-center px-3 py-2">Total</th>
+                <th className="px-4 py-2 text-right">Progression</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {rarityStats.map(({rarity, cfg, total: t, owned: o}) => {
+                const p = t ? Math.round(o/t*100) : 0;
+                return (
+                  <tr key={rarity} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <span className="flex items-center gap-2">
+                        <span className="text-base">{cfg.symbol}</span>
+                        <span className="font-medium text-slate-700">{cfg.label}</span>
+                      </span>
+                    </td>
+                    <td className="text-center px-3 py-2.5 font-bold" style={{color: cfg.color}}>{o}</td>
+                    <td className="text-center px-3 py-2.5 text-slate-400">{t}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2 justify-end">
+                        <div className="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{width:`${p}%`, background: cfg.color}} />
+                        </div>
+                        <span className="text-xs font-semibold w-8 text-right" style={{color: cfg.color}}>{p}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-indigo-50 border-t-2 border-indigo-100">
+                <td className="px-4 py-3 font-bold text-slate-800">🃏 Total</td>
+                <td className="text-center px-3 py-3 font-bold text-indigo-600 text-base">{ownedCount}</td>
+                <td className="text-center px-3 py-3 font-semibold text-slate-500">{total}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2 justify-end">
+                    <div className="w-16 bg-indigo-100 rounded-full h-2 overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-500 transition-all" style={{width:`${pct}%`}} />
+                    </div>
+                    <span className="text-sm font-bold text-indigo-600 w-8 text-right">{pct}%</span>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── App principale ────────────────────────────────────────────────────────────
+function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
+  }, []);
+  const [meals, setMeals] = useSharedState('meals', {});
+  const [shoppingItems, setShoppingItems] = useSharedState('shopping', []);
+  const [crecheSchedule, setCrecheSchedule] = useSharedState('creche', {});
+  const [trips, setTrips] = useSharedState('trips', []);
+  const [settings, setSettings] = useSharedState('settings', {
+    myName: 'Damien', partnerName: 'Ma femme', childName: 'Gabriella', crecheName: 'La crèche', calendarUrl: ''
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const { photos, addPhotos, removePhoto } = usePhotoDB();
+  const [anniversaires, setAnniversaires] = useSharedState('anniversaires', []);
+  const [notes, setNotes] = useSharedState('notes', []);
+  const [darkMode, setDarkMode] = useLocalStorage('darkMode', false); // local uniquement (préférence par appareil)
+  const [domotiqueConfig, setDomotiqueConfig] = useLocalStorage('domotique', { tuya:{accessId:'',secret:'',region:'eu'}, vacuum:{enabled:false,deviceId:'',name:'MOVA'}, plugs:[] });
+  const { states: domotiqueStates } = useDomotique(domotiqueConfig);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
+  const tabs = [
+    { id:'dashboard',     label:'Accueil',    icon:'🏠' },
+    { id:'meals',         label:'Repas',       icon:'🍽️' },
+    { id:'shopping',      label:'Courses',     icon:'🛒' },
+    { id:'creche',        label:'Crèche',      icon:'👶' },
+    { id:'trips',         label:'Voyages',     icon:'✈️' },
+    { id:'notes',         label:'Notes',       icon:'📝' },
+    { id:'finance',       label:'Finance',     icon:'💰' },
+    { id:'pokemon',       label:'Pokémon',     icon:'🃏' },
+    { id:'calendar',      label:'Calendrier',  icon:'📅', hidden: true },
+  ];
+
+  return (
+    <div className="max-w-2xl mx-auto min-h-screen flex flex-col bg-slate-50">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-40">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🏡</span>
+            <span className="font-bold text-slate-800">Ma Vie</span>
+            <span title={online ? 'Synchronisé' : 'Hors ligne'} className="ml-1 w-2 h-2 rounded-full inline-block" style={{backgroundColor: online ? '#22c55e' : '#f59e0b'}} />
+          </div>
+          <button onClick={() => setDarkMode(p => !p)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Mode sombre">{darkMode ? '☀️' : '🌙'}</button>
+          <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Paramètres">⚙️</button>
+        </div>
+        <div className="flex overflow-x-auto scrollbar-hide border-t border-slate-100 justify-center">
+          {tabs.filter(t => !t.hidden).map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-4 py-2 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+              <span className="text-base">{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="flex-1 p-4 pb-8">
+        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} />}
+        {activeTab === 'meals' && <MealPlanner meals={meals} setMeals={setMeals} shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
+        {activeTab === 'shopping' && <ShoppingList shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
+        {activeTab === 'creche' && <CrecheSchedule crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} settings={settings} trips={trips} />}
+        {activeTab === 'trips' && <TripPlanner trips={trips} setTrips={setTrips} />}
+        {activeTab === 'notes' && <PenseBete notes={notes} setNotes={setNotes} />}
+        {activeTab === 'finance' && <Finance />}
+        {activeTab === 'pokemon' && <PokemonCollection />}
+        {activeTab === 'calendar' && <CalendarView settings={settings} />}
+      </main>
+
+      {/* Settings modal */}
+      <Modal open={showSettings} onClose={() => setShowSettings(false)} title="⚙️ Paramètres">
+        <Settings settings={settings} setSettings={setSettings} onClose={() => setShowSettings(false)} anniversaires={anniversaires} setAnniversaires={setAnniversaires} />
+      </Modal>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
