@@ -323,7 +323,7 @@ function Settings({ settings, setSettings, onClose, anniversaires, setAnniversai
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings }) {
+function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings, profile }) {
   const today = new Date();
   const todayKey = fmtDate(today);
   const todayMeals = meals[todayKey] || {};
@@ -346,7 +346,7 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
     <div className="space-y-5 fade-in">
       <div>
         <p className="text-slate-500 text-sm capitalize">{fmtDateFr(today)}</p>
-        <h2 className="text-2xl font-bold text-slate-800">Bonjour {settings.myName} 👋</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Bonjour {(PROFILES[profile] || PROFILES.damien).name} 👋</h2>
       </div>
 
       {/* Dîner du jour */}
@@ -571,8 +571,8 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
         </div>
       )}
 
-      {/* Widget Finance */}
-      <FinanceWidget setTab={setTab} />
+      {/* Widget Finance — masqué pour Jessica */}
+      {profile !== 'jessica' && <FinanceWidget setTab={setTab} />}
     </div>
   );
 }
@@ -2934,7 +2934,7 @@ function App() {
 
       {/* Content */}
       <main className="flex-1 p-4 pb-8">
-        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} />}
+        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} profile={profile} />}
         {activeTab === 'meals' && <MealPlanner meals={meals} setMeals={setMeals} shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'shopping' && <ShoppingList shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'creche' && <CrecheSchedule crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} settings={settings} trips={trips} />}
