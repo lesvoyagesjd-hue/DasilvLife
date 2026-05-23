@@ -162,7 +162,7 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm" style={{zIndex:1000}} onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 fade-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-slate-800 text-lg">{title}</h3>
@@ -323,7 +323,7 @@ function Settings({ settings, setSettings, onClose, anniversaires, setAnniversai
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ meals, crecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings }) {
+function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings }) {
   const today = new Date();
   const todayKey = fmtDate(today);
   const todayMeals = meals[todayKey] || {};
@@ -362,14 +362,26 @@ function Dashboard({ meals, crecheSchedule, trips, shoppingItems, settings, setT
         </div>
       </div>
 
-      {/* Crèche */}
+      {/* Crèche — affiché uniquement les jours pertinents */}
       {(() => {
         const dow = today.getDay(); // 0=dim, 1=lun, 2=mar, 3=mer, 4=jeu, 5=ven, 6=sam
         const isCrecheDay = [2,3,4].includes(dow); // mar, mer, jeu
         const isFriday = dow === 5;
-        const mamieToday = getMamieForWeek(getMonday(today));
         const todayStr = fmtDate(today);
         const todayTrip = trips.find(t => todayStr >= t.startDate && todayStr <= (t.endDate || t.startDate));
+
+        // Masquer si c'est un jour sans crèche et sans voyage (lun, sam, dim)
+        if (!isCrecheDay && !isFriday && !todayTrip) return null;
+
+        const mamieDefault = getMamieForWeek(getMonday(today));
+        const MAMIES = ['Mamie Guida', 'Mamie Lala'];
+        const mamieDisplay = todayCreche.mamie || mamieDefault;
+        const mamieOther = MAMIES.find(m => m !== mamieDisplay);
+
+        function toggleMamie() {
+          setCrecheSchedule(p => ({...p, [todayStr]: {...(p[todayStr]||{}), mamie: mamieOther}}));
+        }
+
         return (
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
             <div className="flex items-center justify-between mb-3">
@@ -400,19 +412,19 @@ function Dashboard({ meals, crecheSchedule, trips, shoppingItems, settings, setT
                 </div>
               </div>
             ) : isFriday ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                <span className="text-2xl">👵</span>
-                <div>
-                  <div className="text-sm font-semibold text-green-700">Chez {mamieToday}</div>
-                  <div className="text-xs text-green-500">Pas de crèche aujourd'hui</div>
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">👵</span>
+                  <div>
+                    <div className="text-sm font-semibold text-green-700">Chez {mamieDisplay}</div>
+                    <div className="text-xs text-green-500">Pas de crèche aujourd'hui</div>
+                  </div>
                 </div>
+                <button onClick={toggleMamie} className="text-xs text-green-600 bg-green-100 hover:bg-green-200 px-2 py-1 rounded-lg transition-colors">
+                  → {mamieOther}
+                </button>
               </div>
-            ) : (
-              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                <span className="text-2xl">🏠</span>
-                <div className="text-sm font-medium text-slate-500">Pas de crèche aujourd'hui</div>
-              </div>
-            )}
+            ) : null}
           </div>
         );
       })()}
@@ -503,9 +515,6 @@ function Dashboard({ meals, crecheSchedule, trips, shoppingItems, settings, setT
         </div>
       )}
 
-      {/* Widget Finance */}
-      <FinanceWidget setTab={setTab} />
-
       {/* Agenda aujourd'hui & demain */}
       {agendaUrl && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -561,6 +570,9 @@ function Dashboard({ meals, crecheSchedule, trips, shoppingItems, settings, setT
           </div>
         </div>
       )}
+
+      {/* Widget Finance */}
+      <FinanceWidget setTab={setTab} />
     </div>
   );
 }
@@ -884,9 +896,20 @@ function CrecheSchedule({ crecheSchedule, setCrecheSchedule, settings, trips }) 
 
         {/* Vendredi — alternance Mamie */}
         {(() => {
-          const isToday = fmtDate(friday) === fmtDate(new Date());
-          const isGuida = mamie === 'Mamie Guida';
+          const fridayKey = fmtDate(friday);
+          const isToday = fridayKey === fmtDate(new Date());
           const trip = getTripForDay(friday);
+          const MAMIES = ['Mamie Guida', 'Mamie Lala'];
+          // Override possible, sinon roulement automatique
+          const mamieDisplay = crecheSchedule[fridayKey]?.mamie || mamie;
+          const mamieOther = MAMIES.find(m => m !== mamieDisplay);
+          const isGuida = mamieDisplay === 'Mamie Guida';
+          const nextWeekMamie = getMamieForWeek(addDays(weekStart, 7));
+
+          function toggleMamie() {
+            setCrecheSchedule(p => ({...p, [fridayKey]: {...(p[fridayKey]||{}), mamie: mamieOther}}));
+          }
+
           return (
             <div className={`bg-white rounded-2xl p-4 shadow-sm border ${isToday?'border-indigo-300 ring-1 ring-indigo-200': trip ? 'border-purple-200' : 'border-slate-100'}`}>
               <div className="flex items-center gap-3">
@@ -899,17 +922,18 @@ function CrecheSchedule({ crecheSchedule, setCrecheSchedule, settings, trips }) 
                     <span className="text-lg">{trip.emoji || '✈️'}</span>
                     <div>
                       <div className="text-xs font-semibold text-purple-700">En voyage</div>
-                      <div className="text-xs text-purple-500">{trip.name} · {isGuida ? 'Mamie Guida' : 'Mamie Lala'} annulée</div>
+                      <div className="text-xs text-purple-500">{trip.name}</div>
                     </div>
                   </div>
                 ) : (
                   <div className="flex-1">
                     <div className="text-xs text-slate-400 mb-2 text-center">👵 Chez la mamie</div>
-                    <div className={`w-full py-2 px-3 rounded-xl text-sm font-semibold text-center border-2 ${isGuida ? 'bg-green-50 text-green-700 border-green-300' : 'bg-orange-50 text-orange-700 border-orange-300'}`}>
-                      {mamie}
-                    </div>
+                    <button onClick={toggleMamie}
+                      className={`w-full py-2 px-3 rounded-xl text-sm font-semibold text-center border-2 transition-all ${isGuida ? 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`}>
+                      {mamieDisplay}
+                    </button>
                     <div className="text-center mt-1.5">
-                      <span className="text-xs text-slate-400">Semaine suivante : {isGuida ? 'Mamie Lala' : 'Mamie Guida'}</span>
+                      <span className="text-xs text-slate-400">Semaine suivante : {nextWeekMamie}</span>
                     </div>
                   </div>
                 )}
@@ -2777,6 +2801,12 @@ function PokemonCollection() {
   );
 }
 
+// ── Profils ───────────────────────────────────────────────────────────────────
+const PROFILES = {
+  damien:  { name: 'Damien',  avatar: '👨', hiddenTabs: [] },
+  jessica: { name: 'Jessica', avatar: '👩', hiddenTabs: ['finance', 'pokemon'] },
+};
+
 // ── App principale ────────────────────────────────────────────────────────────
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -2800,12 +2830,16 @@ function App() {
   const [anniversaires, setAnniversaires] = useSharedState('anniversaires', []);
   const [notes, setNotes] = useSharedState('notes', []);
   const [darkMode, setDarkMode] = useLocalStorage('darkMode', false); // local uniquement (préférence par appareil)
+  const [profile, setProfile] = useLocalStorage('profile', null);    // local : chaque appareil a son profil
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [domotiqueConfig, setDomotiqueConfig] = useLocalStorage('domotique', { tuya:{accessId:'',secret:'',region:'eu'}, vacuum:{enabled:false,deviceId:'',name:'MOVA'}, plugs:[] });
   const { states: domotiqueStates } = useDomotique(domotiqueConfig);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
+
+  const profileCfg = PROFILES[profile] || PROFILES.damien;
 
   const tabs = [
     { id:'dashboard',     label:'Accueil',    icon:'🏠' },
@@ -2819,8 +2853,56 @@ function App() {
     { id:'calendar',      label:'Calendrier',  icon:'📅', hidden: true },
   ];
 
+  // Redirige vers l'accueil si l'onglet actif est interdit pour ce profil
+  useEffect(() => {
+    if (profileCfg.hiddenTabs.includes(activeTab)) setActiveTab('dashboard');
+  }, [profile]);
+
+  // ── Écran de sélection de profil (premier lancement) ──────────────────────
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-8">
+        <div className="text-center space-y-8 w-full max-w-sm">
+          <div>
+            <div className="text-5xl mb-3">🏡</div>
+            <h1 className="text-2xl font-bold text-slate-800">DasilvLife</h1>
+            <p className="text-slate-500 mt-2">Qui êtes-vous ?</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {Object.entries(PROFILES).map(([key, cfg]) => (
+              <button key={key} onClick={() => setProfile(key)}
+                className="flex flex-col items-center gap-3 p-6 bg-white rounded-2xl shadow-sm border-2 border-slate-100 hover:border-indigo-300 hover:bg-indigo-50 transition-all">
+                <span className="text-4xl">{cfg.avatar}</span>
+                <span className="font-semibold text-slate-700 text-lg">{cfg.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto min-h-screen flex flex-col bg-slate-50">
+      {/* Menu changement de profil */}
+      {showProfileMenu && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm" style={{zIndex:1000}} onClick={() => setShowProfileMenu(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-72 fade-in" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 text-lg mb-4 text-center">Changer de profil</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(PROFILES).map(([key, cfg]) => (
+                <button key={key} onClick={() => { setProfile(key); setShowProfileMenu(false); }}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${profile === key ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50 text-slate-700'}`}>
+                  <span className="text-3xl">{cfg.avatar}</span>
+                  <span className="font-medium text-sm">{cfg.name}</span>
+                  {profile === key && <span className="text-xs text-indigo-500">✓ Actif</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -2829,11 +2911,18 @@ function App() {
             <span className="font-bold text-slate-800">DasilvLife</span>
             <span title={online ? 'Synchronisé' : 'Hors ligne'} className="ml-1 w-2 h-2 rounded-full inline-block" style={{backgroundColor: online ? '#22c55e' : '#f59e0b'}} />
           </div>
-          <button onClick={() => setDarkMode(p => !p)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Mode sombre">{darkMode ? '☀️' : '🌙'}</button>
-          <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Paramètres">⚙️</button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setShowProfileMenu(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 text-slate-600 text-sm font-medium transition-colors" title="Changer de profil">
+              <span>{profileCfg.avatar}</span>
+              <span>{profileCfg.name}</span>
+            </button>
+            <button onClick={() => setDarkMode(p => !p)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Mode sombre">{darkMode ? '☀️' : '🌙'}</button>
+            <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Paramètres">⚙️</button>
+          </div>
         </div>
         <div className="flex overflow-x-auto scrollbar-hide border-t border-slate-100 justify-center">
-          {tabs.filter(t => !t.hidden).map(t => (
+          {tabs.filter(t => !t.hidden && !profileCfg.hiddenTabs.includes(t.id)).map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
               className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-4 py-2 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
               <span className="text-base">{t.icon}</span>
@@ -2845,7 +2934,7 @@ function App() {
 
       {/* Content */}
       <main className="flex-1 p-4 pb-8">
-        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} />}
+        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} />}
         {activeTab === 'meals' && <MealPlanner meals={meals} setMeals={setMeals} shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'shopping' && <ShoppingList shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'creche' && <CrecheSchedule crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} settings={settings} trips={trips} />}
