@@ -1,0 +1,19 @@
+{
+  "name": "DasilvLife",
+  "short_name": "DasilvLife",
+  "description": "Tableau de bord familial Da Silva",
+  "start_url": "/DasilvLife/ma-vie.html",
+  "scope": "/DasilvLife/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
