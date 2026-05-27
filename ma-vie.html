@@ -3085,11 +3085,11 @@ function App() {
             <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Paramètres">⚙️</button>
           </div>
         </div>
-        <div className="flex border-t border-slate-100">
+        <div className="flex overflow-x-auto border-t border-slate-100 justify-center" style={{scrollbarWidth:'none',msOverflowStyle:'none',WebkitOverflowScrolling:'touch'}}>
           {tabs.filter(t => !t.hidden && !profileCfg.hiddenTabs.includes(t.id)).map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`flex-1 flex flex-col items-center gap-0.5 px-1 py-1.5 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
-              <span className="text-base">{t.icon}</span>
+              className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+              <span className="text-lg">{t.icon}</span>
               <span className="text-[10px] leading-tight">{t.label}</span>
             </button>
           ))}
