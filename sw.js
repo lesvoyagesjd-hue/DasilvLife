@@ -1,4 +1,4 @@
-const CACHE = 'dasilvlife-v2';
+const CACHE = 'dasilvlife-v3';
 const ASSETS = ['/DasilvLife/ma-vie.html'];
 
 self.addEventListener('install', e => {
