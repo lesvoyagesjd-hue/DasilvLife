@@ -2813,6 +2813,163 @@ const PROFILES = {
   jessica: { name: 'Jessica', avatar: '👩', hiddenTabs: ['finance', 'pokemon'] },
 };
 
+// ── Idées Cadeaux ─────────────────────────────────────────────────────────────
+function GiftIdeas({ gifts, setGifts, settings, profile }) {
+  const [filterPerson, setFilterPerson] = useState('Tous');
+  const [showModal, setShowModal]       = useState(false);
+  const [editing, setEditing]           = useState(null);
+  const [form, setForm] = useState({ name:'', forPerson:'', price:'', link:'', note:'', secret:false });
+
+  const profileName = (PROFILES[profile] || PROFILES.damien).name;
+  const persons = ['Tous', settings.myName||'Damien', settings.partnerName||'Jessica', settings.childName||'Gabriella', 'Autre'];
+
+  // Masquer les cadeaux secrets pour le destinataire
+  const visibleGifts = gifts.filter(g => {
+    if (g.secret && g.forPerson === profileName) return false;
+    if (filterPerson !== 'Tous' && g.forPerson !== filterPerson) return false;
+    return true;
+  });
+
+  const boughtCount  = visibleGifts.filter(g => g.bought).length;
+  const totalCount   = visibleGifts.length;
+
+  function openAdd() {
+    setEditing(null);
+    setForm({ name:'', forPerson: persons[1], price:'', link:'', note:'', secret:false });
+    setShowModal(true);
+  }
+  function openEdit(g) {
+    setEditing(g.id);
+    setForm({ name:g.name, forPerson:g.forPerson, price:g.price||'', link:g.link||'', note:g.note||'', secret:g.secret||false });
+    setShowModal(true);
+  }
+  function save() {
+    if (!form.name.trim()) return;
+    if (editing) {
+      setGifts(p => p.map(g => g.id === editing ? {...g, ...form} : g));
+    } else {
+      setGifts(p => [...p, { id:uid(), ...form, bought:false, addedBy:profileName, createdAt:Date.now() }]);
+    }
+    setShowModal(false);
+  }
+  function toggleBought(id) { setGifts(p => p.map(g => g.id === id ? {...g, bought:!g.bought} : g)); }
+  function remove(id)        { setGifts(p => p.filter(g => g.id !== id)); }
+
+  return (
+    <div className="fade-in space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">🎁 Idées cadeaux</h2>
+          {totalCount > 0 && <p className="text-xs text-slate-400 mt-0.5">{boughtCount}/{totalCount} achetés</p>}
+        </div>
+        <button onClick={openAdd} className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">+ Ajouter</button>
+      </div>
+
+      {/* Filtre par personne */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+        {persons.map(p => (
+          <button key={p} onClick={() => setFilterPerson(p)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${filterPerson===p ? 'bg-indigo-500 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'}`}>
+            {p}
+          </button>
+        ))}
+      </div>
+
+      {/* Liste */}
+      {visibleGifts.length === 0 ? (
+        <div className="text-center py-14 text-slate-400">
+          <div className="text-5xl mb-3">🎁</div>
+          <p className="text-sm">Aucune idée cadeau pour l'instant</p>
+          <button onClick={openAdd} className="mt-3 text-indigo-500 text-sm hover:underline">Ajouter une idée →</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visibleGifts.map(g => (
+            <div key={g.id} className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${g.bought ? 'border-green-200 bg-green-50/30' : 'border-slate-100'}`}>
+              <div className="flex items-start gap-3">
+                {/* Bouton cocher */}
+                <button onClick={() => toggleBought(g.id)}
+                  className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${g.bought ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'}`}>
+                  {g.bought && <span className="text-xs font-bold">✓</span>}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`font-medium text-slate-800 ${g.bought ? 'line-through text-slate-400' : ''}`}>{g.name}</span>
+                    {g.secret && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">🔒 Secret</span>}
+                    {g.bought && <span className="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full">✅ Acheté</span>}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-slate-500">Pour <strong>{g.forPerson}</strong></span>
+                    {g.price && <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-100">~{g.price} €</span>}
+                    {g.link && <a href={g.link} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-500 hover:underline">🔗 Voir</a>}
+                  </div>
+                  {g.note && <p className="text-xs text-slate-400 mt-1 italic">{g.note}</p>}
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button onClick={() => openEdit(g)} className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors text-sm">✏️</button>
+                  <button onClick={() => remove(g.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors text-sm">🗑️</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? '✏️ Modifier l\'idée' : '🎁 Nouvelle idée cadeau'}>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Idée cadeau *</label>
+            <input value={form.name} onChange={e => setForm(p => ({...p, name:e.target.value}))}
+              placeholder="Ex : Nintendo Switch, livre, parfum…"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Pour qui *</label>
+            <select value={form.forPerson} onChange={e => setForm(p => ({...p, forPerson:e.target.value}))}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+              {persons.slice(1).map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Prix estimé (€)</label>
+            <input value={form.price} onChange={e => setForm(p => ({...p, price:e.target.value}))}
+              placeholder="Ex : 50" type="number" min="0"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Lien (optionnel)</label>
+            <input value={form.link} onChange={e => setForm(p => ({...p, link:e.target.value}))}
+              placeholder="https://..."
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Note</label>
+            <textarea value={form.note} onChange={e => setForm(p => ({...p, note:e.target.value}))}
+              placeholder="Taille, couleur, modèle…" rows={2}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none p-3 bg-purple-50 rounded-xl border border-purple-100">
+            <input type="checkbox" checked={form.secret} onChange={e => setForm(p => ({...p, secret:e.target.checked}))} className="w-4 h-4 rounded" />
+            <div>
+              <span className="text-sm font-medium text-purple-700">🔒 Cadeau secret</span>
+              <p className="text-xs text-purple-500">Caché sur le profil du destinataire</p>
+            </div>
+          </label>
+          <div className="flex gap-2 pt-1">
+            <button onClick={save} className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-xl transition-colors">
+              {editing ? 'Modifier' : 'Ajouter 🎁'}
+            </button>
+            <button onClick={() => setShowModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition-colors">
+              Annuler
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 // ── App principale ────────────────────────────────────────────────────────────
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -2835,6 +2992,7 @@ function App() {
   const { photos, addPhotos, removePhoto } = usePhotoDB();
   const [anniversaires, setAnniversaires] = useSharedState('anniversaires', []);
   const [notes, setNotes] = useSharedState('notes', []);
+  const [gifts, setGifts] = useSharedState('gifts', []);
   const [darkMode, setDarkMode] = useLocalStorage('darkMode', false); // local uniquement (préférence par appareil)
   const [profile, setProfile] = useLocalStorage('profile', null);    // local : chaque appareil a son profil
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -2856,6 +3014,7 @@ function App() {
     { id:'notes',         label:'Notes',       icon:'📝' },
     { id:'finance',       label:'Finance',     icon:'💰' },
     { id:'pokemon',       label:'Pokémon',     icon:'🃏' },
+    { id:'gifts',         label:'Cadeaux',     icon:'🎁' },
     { id:'calendar',      label:'Calendrier',  icon:'📅', hidden: true },
   ];
 
@@ -2926,12 +3085,12 @@ function App() {
             <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Paramètres">⚙️</button>
           </div>
         </div>
-        <div className="flex overflow-x-auto scrollbar-hide border-t border-slate-100 justify-center">
+        <div className="flex border-t border-slate-100">
           {tabs.filter(t => !t.hidden && !profileCfg.hiddenTabs.includes(t.id)).map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-4 py-2 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+              className={`flex-1 flex flex-col items-center gap-0.5 px-1 py-1.5 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
               <span className="text-base">{t.icon}</span>
-              <span>{t.label}</span>
+              <span className="text-[10px] leading-tight">{t.label}</span>
             </button>
           ))}
         </div>
@@ -2947,6 +3106,7 @@ function App() {
         {activeTab === 'notes' && <PenseBete notes={notes} setNotes={setNotes} />}
         {activeTab === 'finance' && <Finance />}
         {activeTab === 'pokemon' && <PokemonCollection />}
+        {activeTab === 'gifts' && <GiftIdeas gifts={gifts} setGifts={setGifts} settings={settings} profile={profile} />}
         {activeTab === 'calendar' && <CalendarView settings={settings} />}
       </main>
 
