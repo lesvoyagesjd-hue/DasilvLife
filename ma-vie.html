@@ -228,20 +228,6 @@ function Settings({ settings, setSettings, onClose, anniversaires, setAnniversai
               value={form[k] || ''} onChange={e => setForm(p => ({...p,[k]:e.target.value}))} />
           </div>
         ))}
-        {[['calendarUrl','📅 Agenda 1'],['calendarUrl2','📅 Agenda 2 (optionnel)']].map(([key, label]) => (
-          <div className="pt-2" key={key}>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{label} — code iframe ou URL</label>
-            <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
-              rows={2} placeholder={'Collez ici le code <iframe ...> ou l\'URL directe'}
-              value={form[key] || ''}
-              onChange={e => {
-                const raw = e.target.value;
-                const match = raw.match(/src="([^"]+)"/);
-                setForm(p => ({...p, [key]: match ? match[1] : raw.trim()}));
-              }} />
-          </div>
-        ))}
-        <p className="text-xs text-slate-400">Google Calendar → ⚙️ Paramètres → votre calendrier → "Intégrer le calendrier"</p>
         <div className="flex gap-2 pt-2">
           <button onClick={() => { setSettings(form); onClose(); }}
             className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Enregistrer</button>
@@ -337,16 +323,6 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
   const upcoming = trips.filter(t => new Date(t.startDate) >= today).sort((a,b) => new Date(a.startDate)-new Date(b.startDate)).slice(0,3);
   const unchecked = shoppingItems.filter(i => !i.checked);
 
-  const agendaUrl = (() => {
-    const srcs = [...extractSrcs(settings.calendarUrl), ...extractSrcs(settings.calendarUrl2)];
-    if (!srcs.length) return null;
-    let ctz = '';
-    try { ctz = new URL(settings.calendarUrl).searchParams.get('ctz') || ''; } catch {}
-    const fmtGcal = d => fmtDate(d).replace(/-/g,'');
-    const dateRange = `${fmtGcal(today)}%2F${fmtGcal(addDays(today, 2))}`;
-    const params = srcs.map(s => `src=${encodeURIComponent(decodeURIComponent(s))}`).join('&');
-    return `https://calendar.google.com/calendar/embed?${params}${ctz?`&ctz=${encodeURIComponent(ctz)}`:''}&mode=AGENDA&dates=${dateRange}&showTitle=0&showNav=0&showPrint=0&showTabs=0&showCalendars=0`;
-  })();
 
   return (
     <div className="space-y-5 fade-in">
@@ -434,22 +410,6 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
           </div>
         );
       })()}
-
-      {/* Agenda aujourd'hui & demain */}
-      {agendaUrl && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-700">📅 Agenda — Aujourd'hui & Demain</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})} · {addDays(today,1).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}
-              </p>
-            </div>
-            <button onClick={() => setTab('calendar')} className="text-xs text-indigo-500 hover:underline flex-shrink-0">Tout voir →</button>
-          </div>
-          <iframe key={agendaUrl} src={agendaUrl} style={{border:0}} width="100%" height="240" frameBorder="0" scrolling="no" title="Agenda du jour" />
-        </div>
-      )}
 
       {/* Anniversaires à venir */}
       {anniversaires.length > 0 && (() => {
@@ -1313,58 +1273,6 @@ function TripPlanner({ trips, setTrips }) {
   );
 }
 
-// ── Google Calendar ───────────────────────────────────────────────────────────
-function extractSrcs(url) {
-  if (!url) return [];
-  try { return new URL(url).searchParams.getAll('src'); }
-  catch { return []; }
-}
-function buildCombinedUrl(url1, url2) {
-  const srcs = [...extractSrcs(url1), ...extractSrcs(url2)];
-  if (!srcs.length) return url1 || '';
-  let ctz = '';
-  try { ctz = new URL(url1).searchParams.get('ctz') || ''; } catch {}
-  const params = srcs.map(s => `src=${encodeURIComponent(decodeURIComponent(s))}`).join('&');
-  return `https://calendar.google.com/calendar/embed?${params}${ctz ? `&ctz=${encodeURIComponent(ctz)}` : ''}`;
-}
-
-function CalendarView({ settings }) {
-  if (!settings.calendarUrl) {
-    return (
-      <div className="fade-in">
-        <h2 className="text-xl font-bold text-slate-800 mb-4">📅 Google Calendar</h2>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
-          <div className="text-5xl mb-4">📅</div>
-          <h3 className="font-semibold text-slate-700 mb-2">Connectez votre Google Calendar</h3>
-          <p className="text-sm text-slate-500 mb-4">Pour afficher votre calendrier ici, suivez ces étapes :</p>
-          <div className="text-left bg-slate-50 rounded-xl p-4 text-sm text-slate-600 space-y-2 mb-4">
-            <p><span className="font-semibold text-indigo-600">1.</span> Ouvrez <strong>Google Calendar</strong> sur votre ordinateur</p>
-            <p><span className="font-semibold text-indigo-600">2.</span> Cliquez sur ⚙️ <strong>Paramètres</strong></p>
-            <p><span className="font-semibold text-indigo-600">3.</span> Dans la colonne de gauche, sélectionnez votre calendrier</p>
-            <p><span className="font-semibold text-indigo-600">4.</span> Scrollez jusqu'à <strong>"Intégrer le calendrier"</strong></p>
-            <p><span className="font-semibold text-indigo-600">5.</span> Copiez l'<strong>URL d'intégration</strong> (lien iframe)</p>
-            <p><span className="font-semibold text-indigo-600">6.</span> Collez-la dans ⚙️ <strong>Paramètres</strong> de cette app</p>
-          </div>
-          <p className="text-xs text-slate-400">L'URL ressemble à : https://calendar.google.com/calendar/embed?src=xxx</p>
-        </div>
-      </div>
-    );
-  }
-  const url = buildCombinedUrl(settings.calendarUrl, settings.calendarUrl2);
-  return (
-    <div className="fade-in space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-800">📅 Google Calendar</h2>
-        <a href={url} target="_blank" rel="noreferrer"
-          className="text-xs text-indigo-500 hover:underline">Ouvrir dans Google Calendar →</a>
-      </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <iframe key={url} src={url} style={{border:0}} width="100%" height="650" frameBorder="0" scrolling="no" title="Google Calendar" />
-      </div>
-      <p className="text-xs text-slate-400 text-center">Si le calendrier ne s'affiche pas, cliquez sur "Ouvrir dans Google Calendar" ci-dessus.</p>
-    </div>
-  );
-}
 
 // ── Photos ────────────────────────────────────────────────────────────────────
 function usePhotoDB() {
@@ -2985,7 +2893,7 @@ function App() {
   const [crecheSchedule, setCrecheSchedule] = useSharedState('creche', {});
   const [trips, setTrips] = useSharedState('trips', []);
   const [settings, setSettings] = useSharedState('settings', {
-    myName: 'Damien', partnerName: 'Ma femme', childName: 'Gabriella', crecheName: 'La crèche', calendarUrl: ''
+    myName: 'Damien', partnerName: 'Ma femme', childName: 'Gabriella', crecheName: 'La crèche'
   });
   const [showSettings, setShowSettings] = useState(false);
   const { photos, addPhotos, removePhoto } = usePhotoDB();
@@ -3014,7 +2922,6 @@ function App() {
     { id:'finance',       label:'Finance',     icon:'💰' },
     { id:'pokemon',       label:'Pokémon',     icon:'🃏' },
     { id:'gifts',         label:'Cadeaux',     icon:'🎁' },
-    { id:'calendar',      label:'Calendrier',  icon:'📅', hidden: true },
   ];
 
   // Redirige vers l'accueil si l'onglet actif est interdit pour ce profil
@@ -3106,7 +3013,6 @@ function App() {
         {activeTab === 'finance' && <Finance />}
         {activeTab === 'pokemon' && <PokemonCollection />}
         {activeTab === 'gifts' && <GiftIdeas gifts={gifts} setGifts={setGifts} settings={settings} profile={profile} />}
-        {activeTab === 'calendar' && <CalendarView settings={settings} />}
       </main>
 
       {/* Settings modal */}
