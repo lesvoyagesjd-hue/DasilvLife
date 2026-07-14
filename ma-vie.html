@@ -2714,10 +2714,324 @@ function PokemonCollection() {
   );
 }
 
+// ── Sport ─────────────────────────────────────────────────────────────────────
+const DEFAULT_CIRCUITS = [
+  { id:'c1', name:'Full Body Express', duration:20, color:'#6366f1', exercises:[
+    {name:'Pompes',             sets:3, reps:'12'},
+    {name:'Squats',             sets:3, reps:'15'},
+    {name:'Gainage (planche)',  sets:3, reps:'30s'},
+    {name:'Fentes',             sets:3, reps:'10/jambe'},
+    {name:'Dips (chaise)',      sets:3, reps:'10'},
+  ]},
+  { id:'c2', name:'Cardio HIIT', duration:15, color:'#ef4444', exercises:[
+    {name:'Burpees',            sets:4, reps:'10'},
+    {name:'Jumping Jacks',      sets:4, reps:'30s'},
+    {name:'Mountain Climbers',  sets:4, reps:'20'},
+    {name:'High Knees',         sets:4, reps:'30s'},
+  ]},
+  { id:'c3', name:'Core & Abdos', duration:15, color:'#f59e0b', exercises:[
+    {name:'Planche',            sets:3, reps:'40s'},
+    {name:'Crunchs',            sets:3, reps:'20'},
+    {name:'Russian Twist',      sets:3, reps:'20'},
+    {name:'Leg Raises',         sets:3, reps:'15'},
+    {name:'Superman',           sets:3, reps:'15'},
+  ]},
+  { id:'c4', name:'Jambes & Fessiers', duration:20, color:'#22c55e', exercises:[
+    {name:'Squats sumo',        sets:4, reps:'15'},
+    {name:'Fentes latérales',   sets:3, reps:'12/jambe'},
+    {name:'Pont fessier',       sets:4, reps:'20'},
+    {name:'Mollets debout',     sets:3, reps:'20'},
+    {name:'Wall sit',           sets:3, reps:'45s'},
+  ]},
+];
+
+function SportTracker({ sport, setSport }) {
+  const sessions   = sport.sessions   || [];
+  const weeklyGoal = sport.weeklyGoal || 3;
+  const circuits   = sport.circuits   || DEFAULT_CIRCUITS;
+
+  const [showGoalEdit, setShowGoalEdit]     = useState(false);
+  const [goalInput, setGoalInput]           = useState(weeklyGoal);
+  const [expanded, setExpanded]             = useState(null);
+  const [showHistory, setShowHistory]       = useState(false);
+  const [showCircuitModal, setShowCircuitModal] = useState(false);
+  const [editingCircuitId, setEditingCircuitId] = useState(null);
+  const COLORS = ['#6366f1','#ef4444','#f59e0b','#22c55e','#06b6d4','#ec4899','#8b5cf6','#f97316'];
+  const emptyForm = () => ({ name:'', duration:20, color:'#6366f1', exercises:[{name:'',sets:3,reps:'10'}] });
+  const [circuitForm, setCircuitForm] = useState(emptyForm());
+
+  // Sessions de la semaine en cours
+  const getMonday = d => { const r=new Date(d); const day=r.getDay(); r.setDate(r.getDate()-day+(day===0?-6:1)); r.setHours(0,0,0,0); return r; };
+  const monday = getMonday(new Date());
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+  const thisWeek = sessions.filter(s => { const d=new Date(s.date); return d>=monday && d<=sunday; });
+  const pct = Math.min(100, Math.round((thisWeek.length / weeklyGoal) * 100));
+  const done = thisWeek.length >= weeklyGoal;
+
+  function logSession(circuit) {
+    setSport(p => ({
+      ...p,
+      sessions: [...(p.sessions||[]), { id:uid(), circuitId:circuit.id, circuitName:circuit.name, date:new Date().toISOString() }]
+    }));
+  }
+
+  function deleteSession(id) {
+    setSport(p => ({ ...p, sessions: (p.sessions||[]).filter(s => s.id !== id) }));
+  }
+
+  function openNewCircuit() {
+    setEditingCircuitId(null);
+    setCircuitForm(emptyForm());
+    setShowCircuitModal(true);
+  }
+
+  function openEditCircuit(c, e) {
+    e.stopPropagation();
+    setEditingCircuitId(c.id);
+    setCircuitForm({ name:c.name, duration:c.duration, color:c.color, exercises:c.exercises.map(ex=>({...ex})) });
+    setShowCircuitModal(true);
+  }
+
+  function saveCircuit() {
+    if (!circuitForm.name.trim()) return;
+    const exercises = circuitForm.exercises.filter(ex => ex.name.trim());
+    if (!exercises.length) return;
+    setSport(p => {
+      const list = p.circuits || DEFAULT_CIRCUITS;
+      if (editingCircuitId) {
+        return { ...p, circuits: list.map(c => c.id === editingCircuitId ? {...c, ...circuitForm, exercises} : c) };
+      } else {
+        return { ...p, circuits: [...list, { id:uid(), ...circuitForm, exercises }] };
+      }
+    });
+    setShowCircuitModal(false);
+  }
+
+  function deleteCircuit(id, e) {
+    e.stopPropagation();
+    setSport(p => ({ ...p, circuits: (p.circuits||DEFAULT_CIRCUITS).filter(c => c.id !== id) }));
+    if (expanded === id) setExpanded(null);
+  }
+
+  function updateExercise(i, field, val) {
+    setCircuitForm(p => { const ex=[...p.exercises]; ex[i]={...ex[i],[field]:val}; return {...p,exercises:ex}; });
+  }
+  function addExercise() {
+    setCircuitForm(p => ({...p, exercises:[...p.exercises,{name:'',sets:3,reps:'10'}]}));
+  }
+  function removeExercise(i) {
+    setCircuitForm(p => ({...p, exercises:p.exercises.filter((_,idx)=>idx!==i)}));
+  }
+
+  function saveGoal() {
+    const g = Math.max(1, Math.min(7, parseInt(goalInput)||3));
+    setSport(p => ({ ...p, weeklyGoal: g }));
+    setShowGoalEdit(false);
+  }
+
+  // Grouper l'historique par semaine
+  const byWeek = {};
+  [...sessions].reverse().forEach(s => {
+    const m = getMonday(new Date(s.date));
+    const key = m.toISOString();
+    if (!byWeek[key]) byWeek[key] = { monday: m, sessions: [] };
+    byWeek[key].sessions.push(s);
+  });
+  const weeks = Object.values(byWeek).slice(0, 8);
+
+  const fmtDay = d => new Date(d).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  const fmtWeek = m => { const e=new Date(m); e.setDate(m.getDate()+6); return `${m.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} – ${e.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}`; };
+
+  return (
+    <div className="fade-in space-y-5">
+      <h2 className="text-xl font-bold text-slate-800">🏋️ Mon Sport</h2>
+
+      {/* Objectif semaine */}
+      <div className={`rounded-2xl p-5 shadow-sm border ${done ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100'}`}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="font-semibold text-slate-700">Objectif de la semaine</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {monday.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} – {sunday.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className={`text-2xl font-bold ${done ? 'text-green-600' : 'text-indigo-600'}`}>{thisWeek.length}</span>
+            <span className="text-slate-400 text-lg font-medium">/{weeklyGoal}</span>
+            <p className="text-xs text-slate-400 mt-0.5">séances</p>
+          </div>
+        </div>
+        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+          <div className="h-3 rounded-full transition-all duration-500"
+            style={{width:`${pct}%`, backgroundColor: done ? '#22c55e' : '#6366f1'}} />
+        </div>
+        {done
+          ? <p className="text-xs text-green-600 font-medium mt-2 text-center">🎉 Objectif atteint cette semaine !</p>
+          : <p className="text-xs text-slate-400 mt-2 text-center">{weeklyGoal - thisWeek.length} séance{weeklyGoal-thisWeek.length>1?'s':''} restante{weeklyGoal-thisWeek.length>1?'s':''}</p>
+        }
+        <button onClick={() => { setGoalInput(weeklyGoal); setShowGoalEdit(true); }}
+          className="mt-3 w-full text-xs text-indigo-500 hover:underline text-center">
+          Modifier l'objectif →
+        </button>
+      </div>
+
+      {/* Circuits */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-slate-700">Circuits disponibles</h3>
+          <button onClick={openNewCircuit} className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-xl font-medium transition-colors">+ Nouveau</button>
+        </div>
+        <div className="space-y-3">
+          {circuits.map(c => {
+            const isOpen = expanded === c.id;
+            return (
+              <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <button onClick={() => setExpanded(isOpen ? null : c.id)} className="flex items-center gap-3 flex-1 text-left min-w-0">
+                    <span className="w-2 h-10 rounded-full flex-shrink-0" style={{backgroundColor: c.color}} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-800">{c.name}</p>
+                      <p className="text-xs text-slate-400">⏱ {c.duration} min · {c.exercises.length} exercices</p>
+                    </div>
+                    <span className="text-slate-400 text-sm">{isOpen ? '▲' : '▼'}</span>
+                  </button>
+                  <button onClick={e => openEditCircuit(c, e)} className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors text-sm flex-shrink-0">✏️</button>
+                  <button onClick={e => deleteCircuit(c.id, e)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors text-sm flex-shrink-0">🗑️</button>
+                </div>
+                {isOpen && (
+                  <div className="px-4 pb-4">
+                    <div className="space-y-1.5 mb-4">
+                      {c.exercises.map((e,i) => (
+                        <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
+                          <span className="text-sm text-slate-700">{e.name}</span>
+                          <span className="text-xs text-slate-400 font-medium">{e.sets}×{e.reps}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => { logSession(c); setExpanded(null); }}
+                      className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all active:scale-95"
+                      style={{backgroundColor: c.color}}>
+                      ✅ Séance effectuée !
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Historique */}
+      <div>
+        <button onClick={() => setShowHistory(p => !p)}
+          className="flex items-center gap-2 font-semibold text-slate-700 mb-3">
+          📋 Historique
+          <span className="text-xs text-slate-400 font-normal">({sessions.length} séance{sessions.length>1?'s':''})</span>
+          <span className="text-slate-400 text-xs ml-auto">{showHistory ? '▲' : '▼'}</span>
+        </button>
+        {showHistory && (
+          weeks.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">Aucune séance enregistrée</p>
+          ) : (
+            <div className="space-y-4">
+              {weeks.map(w => (
+                <div key={w.monday.toISOString()}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{fmtWeek(w.monday)}</p>
+                    <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">{w.sessions.length} séance{w.sessions.length>1?'s':''}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {w.sessions.map(s => (
+                      <div key={s.id} className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-slate-100">
+                        <div>
+                          <p className="text-sm font-medium text-slate-700">{s.circuitName}</p>
+                          <p className="text-xs text-slate-400">{fmtDay(s.date)}</p>
+                        </div>
+                        <button onClick={() => deleteSession(s.id)} className="text-slate-300 hover:text-rose-400 text-sm p-1 transition-colors">🗑️</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Modal circuit */}
+      <Modal open={showCircuitModal} onClose={() => setShowCircuitModal(false)} title={editingCircuitId ? '✏️ Modifier le circuit' : '➕ Nouveau circuit'}>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nom du circuit *</label>
+            <input value={circuitForm.name} onChange={e => setCircuitForm(p=>({...p,name:e.target.value}))}
+              placeholder="Ex : Full Body, Cardio…"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Durée (min)</label>
+              <input value={circuitForm.duration} onChange={e => setCircuitForm(p=>({...p,duration:e.target.value}))}
+                type="number" min="1" max="120"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Couleur</label>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {COLORS.map(col => (
+                  <button key={col} onClick={() => setCircuitForm(p=>({...p,color:col}))}
+                    className="w-6 h-6 rounded-full border-2 transition-all"
+                    style={{backgroundColor:col, borderColor: circuitForm.color===col ? '#1e293b' : 'transparent'}} />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Exercices *</label>
+            <div className="space-y-2">
+              {circuitForm.exercises.map((ex, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input value={ex.name} onChange={e => updateExercise(i,'name',e.target.value)}
+                    placeholder="Exercice" className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                  <input value={ex.sets} onChange={e => updateExercise(i,'sets',parseInt(e.target.value)||1)}
+                    type="number" min="1" placeholder="Séries" className="w-14 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                  <input value={ex.reps} onChange={e => updateExercise(i,'reps',e.target.value)}
+                    placeholder="Reps" className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                  <button onClick={() => removeExercise(i)} className="text-slate-300 hover:text-rose-400 transition-colors text-lg leading-none">×</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addExercise} className="mt-2 text-sm text-indigo-500 hover:underline">+ Ajouter un exercice</button>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={saveCircuit} className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-xl transition-colors">
+              {editingCircuitId ? 'Modifier' : 'Créer'}
+            </button>
+            <button onClick={() => setShowCircuitModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition-colors">Annuler</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal objectif */}
+      <Modal open={showGoalEdit} onClose={() => setShowGoalEdit(false)} title="🎯 Objectif hebdomadaire">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500">Combien de séances par semaine veux-tu faire ?</p>
+          <div className="flex items-center justify-center gap-4">
+            <button onClick={() => setGoalInput(p => Math.max(1, p-1))} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-xl font-bold text-slate-600 transition-colors">−</button>
+            <span className="text-4xl font-bold text-indigo-600 w-12 text-center">{goalInput}</span>
+            <button onClick={() => setGoalInput(p => Math.min(7, p+1))} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-xl font-bold text-slate-600 transition-colors">+</button>
+          </div>
+          <p className="text-xs text-slate-400 text-center">séance{goalInput>1?'s':''} / semaine</p>
+          <button onClick={saveGoal} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-xl transition-colors">Enregistrer</button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 // ── Profils ───────────────────────────────────────────────────────────────────
 const PROFILES = {
   damien:  { name: 'Damien',  avatar: '👨', hiddenTabs: [] },
-  jessica: { name: 'Jessica', avatar: '👩', hiddenTabs: ['finance', 'pokemon'] },
+  jessica: { name: 'Jessica', avatar: '👩', hiddenTabs: ['finance', 'pokemon', 'sport'] },
 };
 
 // ── Idées Cadeaux ─────────────────────────────────────────────────────────────
@@ -2900,6 +3214,7 @@ function App() {
   const [anniversaires, setAnniversaires] = useSharedState('anniversaires', []);
   const [notes, setNotes] = useSharedState('notes', []);
   const [gifts, setGifts] = useSharedState('gifts', []);
+  const [sport, setSport] = useSharedState('sport', { sessions: [], weeklyGoal: 3, circuits: DEFAULT_CIRCUITS });
   const [darkMode, setDarkMode] = useLocalStorage('darkMode', false); // local uniquement (préférence par appareil)
   const [profile, setProfile] = useLocalStorage('profile', null);    // local : chaque appareil a son profil
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -2922,6 +3237,7 @@ function App() {
     { id:'finance',       label:'Finance',     icon:'💰' },
     { id:'pokemon',       label:'Pokémon',     icon:'🃏' },
     { id:'gifts',         label:'Cadeaux',     icon:'🎁' },
+    { id:'sport',         label:'Sport',       icon:'🏋️' },
   ];
 
   // Redirige vers l'accueil si l'onglet actif est interdit pour ce profil
@@ -2991,11 +3307,11 @@ function App() {
             <button onClick={() => setShowSettings(true)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 text-lg" title="Paramètres">⚙️</button>
           </div>
         </div>
-        <div className="flex overflow-x-auto border-t border-slate-100 justify-center" style={{scrollbarWidth:'none',msOverflowStyle:'none',WebkitOverflowScrolling:'touch'}}>
+        <div className="flex flex-wrap border-t border-slate-100">
           {tabs.filter(t => !t.hidden && !profileCfg.hiddenTabs.includes(t.id)).map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
-              <span className="text-lg">{t.icon}</span>
+            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{width:'20%'}}
+              className={`flex flex-col items-center gap-0.5 py-1.5 text-xs font-medium transition-colors ${activeTab===t.id ? 'tab-active text-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+              <span className="text-base">{t.icon}</span>
               <span className="text-[10px] leading-tight">{t.label}</span>
             </button>
           ))}
@@ -3013,6 +3329,7 @@ function App() {
         {activeTab === 'finance' && <Finance />}
         {activeTab === 'pokemon' && <PokemonCollection />}
         {activeTab === 'gifts' && <GiftIdeas gifts={gifts} setGifts={setGifts} settings={settings} profile={profile} />}
+        {activeTab === 'sport' && <SportTracker sport={sport} setSport={setSport} />}
       </main>
 
       {/* Settings modal */}
