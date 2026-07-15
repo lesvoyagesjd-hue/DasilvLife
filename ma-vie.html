@@ -314,8 +314,42 @@ function Settings({ settings, setSettings, onClose, anniversaires, setAnniversai
   );
 }
 
+// ── Citations du jour ─────────────────────────────────────────────────────────
+const DAILY_QUOTES = [
+  { text: "Je puis tout par celui qui me fortifie.", source: "Philippiens 4:13" },
+  { text: "La discipline est le pont entre les objectifs et leur accomplissement.", source: "Jim Rohn" },
+  { text: "L'Éternel est mon berger, je ne manquerai de rien.", source: "Psaume 23:1" },
+  { text: "Le succès n'est pas final, l'échec n'est pas fatal : c'est le courage de continuer qui compte.", source: "Winston Churchill" },
+  { text: "Car je connais les projets que j'ai formés sur vous, projets de paix et non de malheur, afin de vous donner un avenir et de l'espérance.", source: "Jérémie 29:11" },
+  { text: "Ne comptez pas les jours, faites que les jours comptent.", source: "Muhammad Ali" },
+  { text: "Fortifie-toi et prends courage ! Ne t'épouvante point, car l'Éternel ton Dieu est avec toi dans tout ce que tu entreprendras.", source: "Josué 1:9" },
+  { text: "La seule façon de faire du bon travail est d'aimer ce que vous faites.", source: "Steve Jobs" },
+  { text: "Dieu est notre refuge et notre force, un secours qui ne manque jamais dans la détresse.", source: "Psaume 46:2" },
+  { text: "Votre seule limite, c'est votre mental.", source: "Inconnu" },
+  { text: "Ayez confiance en l'Éternel de tout votre cœur, et ne vous appuyez pas sur votre propre intelligence.", source: "Proverbes 3:5" },
+  { text: "Prenez soin de votre corps, c'est le seul endroit où vous devez vivre.", source: "Jim Rohn" },
+  { text: "Jésus lui dit : Si tu peux croire, tout est possible à celui qui croit.", source: "Marc 9:23" },
+  { text: "Les petites actions quotidiennes font les grands résultats.", source: "Inconnu" },
+  { text: "Ne vous lassez pas de faire le bien.", source: "2 Thessaloniciens 3:13" },
+  { text: "Ce n'est pas parce que les choses sont difficiles que nous n'osons pas. C'est parce que nous n'osons pas qu'elles sont difficiles.", source: "Sénèque" },
+  { text: "Je te loue de ce que je suis une créature si merveilleuse. Tes œuvres sont admirables.", source: "Psaume 139:14" },
+  { text: "La famille est la chose la plus importante du monde.", source: "Lady Diana" },
+  { text: "Cherchez premièrement le royaume et la justice de Dieu ; et toutes ces choses vous seront données par-dessus.", source: "Matthieu 6:33" },
+  { text: "Ce qui ne vous tue pas vous rend plus fort.", source: "Nietzsche" },
+  { text: "L'amour est patient, l'amour est serviable ; il n'est point envieux, il ne se vante point.", source: "1 Corinthiens 13:4" },
+  { text: "Le secret pour avancer est de commencer.", source: "Mark Twain" },
+  { text: "Remets ton sort à l'Éternel, espère en lui, et il agira.", source: "Psaume 37:5" },
+  { text: "Un an de travail acharné vaut mieux que dix ans de rêves.", source: "Inconnu" },
+  { text: "Que votre lumière luise ainsi devant les hommes, afin qu'ils voient vos bonnes œuvres.", source: "Matthieu 5:16" },
+  { text: "Soyez le changement que vous voulez voir dans le monde.", source: "Gandhi" },
+  { text: "L'Éternel te bénisse et te garde ! L'Éternel fasse luire sa face sur toi.", source: "Nombres 6:24-25" },
+  { text: "La discipline, c'est choisir entre ce que vous voulez maintenant et ce que vous voulez le plus.", source: "Abraham Lincoln" },
+  { text: "L'espérance ne trompe point, parce que l'amour de Dieu est répandu dans nos cœurs.", source: "Romains 5:5" },
+  { text: "Chaque matin est une nouvelle chance de devenir meilleur.", source: "Inconnu" },
+];
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings, profile }) {
+function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingItems, settings, setTab, photos, anniversaires, notes, domotiqueConfig, domotiqueStates, onOpenSettings, profile, sport }) {
   const today = new Date();
   const todayKey = fmtDate(today);
   const todayMeals = meals[todayKey] || {};
@@ -323,6 +357,15 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
   const upcoming = trips.filter(t => new Date(t.startDate) >= today).sort((a,b) => new Date(a.startDate)-new Date(b.startDate)).slice(0,3);
   const unchecked = shoppingItems.filter(i => !i.checked);
 
+  // Sport — objectif semaine
+  const sportSessions = sport?.sessions || [];
+  const sportGoal     = sport?.weeklyGoal || 3;
+  const getMonday = d => { const r=new Date(d); const day=r.getDay(); r.setDate(r.getDate()-day+(day===0?-6:1)); r.setHours(0,0,0,0); return r; };
+  const monday = getMonday(today);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+  const sportThisWeek = sportSessions.filter(s => { const d=new Date(s.date); return d>=monday && d<=sunday; });
+  const sportPct = Math.min(100, Math.round((sportThisWeek.length / sportGoal) * 100));
+  const sportDone = sportThisWeek.length >= sportGoal;
 
   return (
     <div className="space-y-5 fade-in">
@@ -331,18 +374,49 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
         <h2 className="text-2xl font-bold text-slate-800">Bonjour {(PROFILES[profile] || PROFILES.damien).name} 👋</h2>
       </div>
 
-      {/* Dîner du jour */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-slate-700">🌙 Ce soir on mange</h3>
-          <button onClick={() => setTab('meals')} className="text-xs text-indigo-500 hover:underline">Voir semainier →</button>
+      {/* Bloc motivation — Damien uniquement */}
+      {profile !== 'jessica' && (() => {
+        const dayOfYear = Math.floor((today - new Date(today.getFullYear(),0,0)) / 86400000);
+        const quote = DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length];
+        return (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 border-l-4" style={{borderLeftColor:'#6366f1'}}>
+            <p className="text-sm text-slate-700 italic leading-relaxed">« {quote.text} »</p>
+            <p className="text-xs text-slate-400 mt-2 text-right">— {quote.source}</p>
+          </div>
+        );
+      })()}
+
+      {/* Widget objectif sport — Damien uniquement */}
+      {profile !== 'jessica' && sport && (
+        <button onClick={() => setTab('sport')} className="w-full text-left">
+          <div className={`rounded-2xl p-4 shadow-sm border ${sportDone ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-slate-700">🏋️ Objectif sport</span>
+              <span className={`text-sm font-bold ${sportDone ? 'text-green-600' : 'text-indigo-600'}`}>{sportThisWeek.length}/{sportGoal} séances</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div className="h-2 rounded-full transition-all duration-500" style={{width:`${sportPct}%`, backgroundColor: sportDone ? '#22c55e' : '#6366f1'}} />
+            </div>
+            {sportDone
+              ? <p className="text-xs text-green-600 font-medium mt-1.5">🎉 Objectif atteint cette semaine !</p>
+              : <p className="text-xs text-slate-400 mt-1.5">{sportGoal - sportThisWeek.length} séance{sportGoal-sportThisWeek.length>1?'s':''} restante{sportGoal-sportThisWeek.length>1?'s':''} cette semaine</p>
+            }
+          </div>
+        </button>
+      )}
+
+      {/* Dîner du jour — affiché seulement si rempli */}
+      {todayMeals['Dîner'] && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-700">🌙 Ce soir on mange</h3>
+            <button onClick={() => setTab('meals')} className="text-xs text-indigo-500 hover:underline">Voir semainier →</button>
+          </div>
+          <div className="rounded-xl p-4 text-center bg-indigo-50 border border-indigo-200">
+            <span className="text-base font-semibold text-indigo-800">{todayMeals['Dîner']}</span>
+          </div>
         </div>
-        <div className={`rounded-xl p-4 text-center ${todayMeals['Dîner'] ? 'bg-indigo-50 border border-indigo-200' : 'bg-slate-50 border border-dashed border-slate-200'}`}>
-          {todayMeals['Dîner']
-            ? <span className="text-base font-semibold text-indigo-800">{todayMeals['Dîner']}</span>
-            : <span className="text-slate-400 text-sm">Rien de prévu — <button onClick={() => setTab('meals')} className="text-indigo-500 hover:underline">planifier →</button></span>}
-        </div>
-      </div>
+      )}
 
       {/* Crèche — affiché uniquement les jours pertinents */}
       {(() => {
@@ -2992,7 +3066,7 @@ function SportTracker({ sport, setSport }) {
                 <div key={i} className="flex gap-2 items-center">
                   <input value={ex.name} onChange={e => updateExercise(i,'name',e.target.value)}
                     placeholder="Exercice" className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                  <input value={ex.sets} onChange={e => updateExercise(i,'sets',parseInt(e.target.value)||1)}
+                  <input value={ex.sets} onChange={e => updateExercise(i,'sets',e.target.value)}
                     type="number" min="1" placeholder="Séries" className="w-14 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                   <input value={ex.reps} onChange={e => updateExercise(i,'reps',e.target.value)}
                     placeholder="Reps" className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
@@ -3320,7 +3394,7 @@ function App() {
 
       {/* Content */}
       <main className="flex-1 p-4 pb-8">
-        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} profile={profile} />}
+        {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} profile={profile} sport={sport} />}
         {activeTab === 'meals' && <MealPlanner meals={meals} setMeals={setMeals} shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'shopping' && <ShoppingList shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'creche' && <CrecheSchedule crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} settings={settings} trips={trips} />}
