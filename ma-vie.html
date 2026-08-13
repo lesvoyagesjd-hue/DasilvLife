@@ -618,11 +618,14 @@ function Dashboard({ meals, crecheSchedule, setCrecheSchedule, trips, shoppingIt
 }
 
 // ── Semainier de repas ────────────────────────────────────────────────────────
-function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
-  const [weekStart, setWeekStart] = useState(getMonday(new Date()));
-  const [modal, setModal] = useState(null); // {dateKey, meal}
-  const [input, setInput] = useState('');
+function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems, dishes, setDishes }) {
+  const [weekStart, setWeekStart]     = useState(getMonday(new Date()));
+  const [modal, setModal]             = useState(null);
+  const [input, setInput]             = useState('');
   const [ingredients, setIngredients] = useState('');
+  const [showDishes, setShowDishes]   = useState(false);
+  const [dishModal, setDishModal]     = useState(false);
+  const [dishForm, setDishForm]       = useState({ name:'', ingredients:'' });
 
   const days = Array.from({length:7}, (_,i) => addDays(weekStart, i));
 
@@ -631,6 +634,12 @@ function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
     setIngredients('');
     setModal({dateKey});
   }
+
+  function selectDish(dish) {
+    setInput(dish.name);
+    setIngredients(dish.ingredients || '');
+  }
+
   function saveMeal() {
     if (!modal) return;
     const {dateKey} = modal;
@@ -644,12 +653,24 @@ function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
     }
     setModal(null);
   }
+
   function clearMeal(dateKey) {
     setMeals(p => {
       const next = {...p, [dateKey]: {...(p[dateKey]||{})}};
       delete next[dateKey]['Dîner'];
       return next;
     });
+  }
+
+  function saveDish() {
+    if (!dishForm.name.trim()) return;
+    setDishes(p => [...p, { id:uid(), ...dishForm }]);
+    setDishForm({ name:'', ingredients:'' });
+    setDishModal(false);
+  }
+
+  function deleteDish(id) {
+    setDishes(p => p.filter(d => d.id !== id));
   }
 
   const fmtWeek = `${weekStart.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} – ${addDays(weekStart,6).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})}`;
@@ -659,11 +680,42 @@ function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
     <div className="fade-in space-y-3">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-bold text-slate-800">🌙 Dîners de la semaine</h2>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setWeekStart(p => addDays(p,-7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">◀</button>
-          <span className="text-sm font-medium text-slate-600">{fmtWeek}</span>
-          <button onClick={() => setWeekStart(p => addDays(p,7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">▶</button>
+        <button onClick={() => setShowDishes(p => !p)}
+          className="flex items-center gap-1.5 text-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-xl font-medium transition-colors">
+          📋 Mes plats {dishes.length > 0 && <span className="bg-indigo-200 text-indigo-700 text-xs px-1.5 py-0.5 rounded-full">{dishes.length}</span>}
+        </button>
+      </div>
+
+      {/* Bibliothèque de plats */}
+      {showDishes && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-slate-700 text-sm">Bibliothèque de plats</p>
+            <button onClick={() => { setDishForm({name:'',ingredients:''}); setDishModal(true); }}
+              className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors">+ Créer un plat</button>
+          </div>
+          {dishes.length === 0
+            ? <p className="text-sm text-slate-400 text-center py-3">Aucun plat enregistré</p>
+            : <div className="space-y-2">
+                {dishes.map(d => (
+                  <div key={d.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{d.name}</p>
+                      {d.ingredients && <p className="text-xs text-slate-400">{d.ingredients}</p>}
+                    </div>
+                    <button onClick={() => deleteDish(d.id)} className="text-slate-300 hover:text-rose-400 transition-colors p-1">🗑️</button>
+                  </div>
+                ))}
+              </div>
+          }
         </div>
+      )}
+
+      {/* Semainier */}
+      <div className="flex items-center justify-center gap-3 py-1">
+        <button onClick={() => setWeekStart(p => addDays(p,-7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">◀</button>
+        <span className="text-sm font-medium text-slate-600">{fmtWeek}</span>
+        <button onClick={() => setWeekStart(p => addDays(p,7))} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600">▶</button>
       </div>
 
       {days.map((d, i) => {
@@ -671,30 +723,41 @@ function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
         const val = meals[dk]?.['Dîner'];
         const isToday = dk === fmtDate(new Date());
         return (
-          <div key={dk}
-            onClick={() => openSlot(dk)}
+          <div key={dk} onClick={() => openSlot(dk)}
             className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border ${isToday ? 'border-indigo-300 ring-1 ring-indigo-200 bg-white' : 'bg-white border-slate-100 hover:border-indigo-200'}`}>
             <div className="w-20 flex-shrink-0">
               <div className={`text-sm font-semibold ${isToday ? 'text-indigo-600' : 'text-slate-700'}`}>{DAYS_FR[i]}</div>
               <div className="text-xs text-slate-400">{d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
             </div>
             <div className="flex-1">
-              {val
-                ? <span className="text-sm font-medium text-slate-800">{val}</span>
-                : <span className="text-sm text-slate-300">Ajouter un plat...</span>}
+              {val ? <span className="text-sm font-medium text-slate-800">{val}</span>
+                   : <span className="text-sm text-slate-300">Ajouter un plat...</span>}
             </div>
-            {val
-              ? <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-1 rounded-lg">✏️</span>
-              : <span className="text-slate-300 text-lg">+</span>}
+            {val ? <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-1 rounded-lg">✏️</span>
+                 : <span className="text-slate-300 text-lg">+</span>}
           </div>
         );
       })}
 
+      {/* Modal planification */}
       <Modal open={!!modal} onClose={() => setModal(null)} title={`🌙 Dîner · ${modalDay}`}>
         <div className="space-y-4">
+          {dishes.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Choisir un plat enregistré</label>
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                {dishes.map(d => (
+                  <button key={d.id} onClick={() => selectDish(d)}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${input === d.name ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Plat</label>
-            <input autoFocus className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            <label className="block text-sm font-medium text-slate-700 mb-1">Ou saisir manuellement</label>
+            <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               placeholder="Ex: Poulet rôti, Pasta bolognaise..."
               value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key==='Enter' && saveMeal()} />
@@ -711,6 +774,28 @@ function MealPlanner({ meals, setMeals, shoppingItems, setShoppingItems }) {
               <button onClick={() => { clearMeal(modal.dateKey); setModal(null); }}
                 className="px-4 border border-rose-200 text-rose-500 rounded-lg py-2 text-sm hover:bg-rose-50">Supprimer</button>
             )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal création plat */}
+      <Modal open={dishModal} onClose={() => setDishModal(false)} title="🍽️ Créer un plat">
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nom du plat *</label>
+            <input value={dishForm.name} onChange={e => setDishForm(p=>({...p,name:e.target.value}))}
+              placeholder="Ex: Poulet rôti, Pasta bolognaise..."
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Ingrédients habituels <span className="text-slate-400 font-normal">(optionnel, virgules)</span></label>
+            <textarea value={dishForm.ingredients} onChange={e => setDishForm(p=>({...p,ingredients:e.target.value}))}
+              placeholder="Ex: 500g pâtes, boeuf haché, coulis tomate..."
+              rows={2} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={saveDish} className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-xl transition-colors">Créer le plat</button>
+            <button onClick={() => setDishModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition-colors">Annuler</button>
           </div>
         </div>
       </Modal>
@@ -3288,6 +3373,7 @@ function App() {
   const [anniversaires, setAnniversaires] = useSharedState('anniversaires', []);
   const [notes, setNotes] = useSharedState('notes', []);
   const [gifts, setGifts] = useSharedState('gifts', []);
+  const [dishes, setDishes] = useSharedState('dishes', []);
   const [sport, setSport] = useSharedState('sport', { sessions: [], weeklyGoal: 3, circuits: DEFAULT_CIRCUITS });
   const [darkMode, setDarkMode] = useLocalStorage('darkMode', false); // local uniquement (préférence par appareil)
   const [profile, setProfile] = useLocalStorage('profile', null);    // local : chaque appareil a son profil
@@ -3395,7 +3481,7 @@ function App() {
       {/* Content */}
       <main className="flex-1 p-4 pb-8">
         {activeTab === 'dashboard' && <Dashboard meals={meals} crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} trips={trips} shoppingItems={shoppingItems} settings={settings} setTab={setActiveTab} photos={photos} anniversaires={anniversaires} notes={notes} domotiqueConfig={domotiqueConfig} domotiqueStates={domotiqueStates} onOpenSettings={() => setShowSettings(true)} profile={profile} sport={sport} />}
-        {activeTab === 'meals' && <MealPlanner meals={meals} setMeals={setMeals} shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
+        {activeTab === 'meals' && <MealPlanner meals={meals} setMeals={setMeals} shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} dishes={dishes} setDishes={setDishes} />}
         {activeTab === 'shopping' && <ShoppingList shoppingItems={shoppingItems} setShoppingItems={setShoppingItems} />}
         {activeTab === 'creche' && <CrecheSchedule crecheSchedule={crecheSchedule} setCrecheSchedule={setCrecheSchedule} settings={settings} trips={trips} />}
         {activeTab === 'trips' && <TripPlanner trips={trips} setTrips={setTrips} />}
